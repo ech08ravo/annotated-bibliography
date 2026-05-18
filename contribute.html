@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contribute · Shared Annotated Bibliography</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 2rem;
+      text-align: center;
+      background: var(--card);
+      transition: border-color 0.15s, background 0.15s;
+      margin-bottom: 1.5rem;
+    }
+    .dropzone.over { border-color: var(--accent); background: #f0f4fb; }
+    .dropzone p { margin: 0.25rem 0; }
+    .dropzone .small { color: var(--muted); font-size: 0.88rem; }
+    .record {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .record h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+    .record .meta { color: var(--muted); margin: 0 0 0.75rem; font-size: 0.92rem; }
+    .field { display: block; margin-bottom: 0.75rem; }
+    .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.2rem; }
+    .field input, .field textarea {
+      width: 100%; padding: 0.5rem 0.6rem;
+      border: 1px solid var(--border); border-radius: 4px;
+      font: inherit; font-size: 0.95rem;
+      background: #fff;
+    }
+    .field textarea { min-height: 60px; resize: vertical; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+    .actions-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; }
+    .btn {
+      padding: 0.45rem 0.85rem; border: 1px solid var(--border);
+      border-radius: 4px; background: #fff; cursor: pointer;
+      font: inherit; font-size: 0.9rem;
+    }
+    .btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn:hover { border-color: var(--accent); }
+    .help-box { background: #f6f6f0; border-left: 3px solid var(--accent);
+                padding: 0.75rem 1rem; margin: 1rem 0; font-size: 0.93rem; }
+    code { background: #eef2f8; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <h1><a href="index.html" style="color:inherit;text-decoration:none;">← Shared Annotated Bibliography</a></h1>
+    <p class="tagline">Contribute papers from Zotero or EndNote</p>
+  </header>
+
+  <main>
+    <div class="help-box">
+      <strong>How this works.</strong> Export your reference(s) from
+      Zotero (right-click → Export Items → format <em>RIS</em>) or
+      EndNote (File → Export → output style <em>RefMan (RIS) Export</em>).
+      Drop the <code>.ris</code> file below. Fill in your annotation for each paper,
+      then click <em>Download paper JSON</em>. Open a pull request adding the file(s) to <code>papers/</code> —
+      the rest (index entry, GitHub issue for comments and upvotes) is handled automatically by GitHub Actions when your PR merges.
+    </div>
+
+    <div id="dropzone" class="dropzone">
+      <p><strong>Drop a <code>.ris</code> file here</strong></p>
+      <p class="small">or</p>
+      <p><input type="file" id="file" accept=".ris,text/plain" multiple></p>
+      <p class="small">Multiple files are fine. Bulk imports (no annotation per paper) can instead be committed to <code>imports/</code> in the repo.</p>
+    </div>
+
+    <p><label>Your GitHub username (so we can credit your annotation): <input id="gh-user" type="text" placeholder="e.g. octocat" style="padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:4px;font:inherit;"></label></p>
+
+    <div id="status" class="status" role="status"></div>
+    <div id="records"></div>
+
+    <p><a href="index.html">← Back to listing</a></p>
+  </main>
+
+  <script src="js/ris-parser.js"></script>
+  <script src="js/contribute.js"></script>
+</body>
+</html>

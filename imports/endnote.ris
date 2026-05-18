@@ -1,0 +1,3 @@
+Placeholder. Same as zotero.ris — drop a real RIS export from EndNote
+(File → Export → output style "RefMan (RIS) Export") and push.
+Intentionally not parseable RIS so it won't trigger the Action.

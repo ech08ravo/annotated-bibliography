@@ -1,0 +1,46 @@
+name: Import RIS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "imports/**.ris"
+      - ".github/workflows/import-ris.yml"
+      - "scripts/import-ris.js"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Convert RIS files to paper JSON
+        id: import
+        run: node scripts/import-ris.js
+
+      - name: Create issues for new papers
+        if: steps.import.outputs.added_count != '0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/create-missing-issues.js
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Import papers from RIS"
+            git push
+          else
+            echo "No changes to commit."
+          fi

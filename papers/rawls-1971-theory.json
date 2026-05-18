@@ -1,0 +1,18 @@
+{
+  "id": "rawls-1971-theory",
+  "title": "A Theory of Justice",
+  "authors": ["John Rawls"],
+  "year": 1971,
+  "venue": "Harvard University Press",
+  "doi": "",
+  "url": "",
+  "tags": ["political philosophy", "ethics", "fairness"],
+  "annotation": {
+    "author_github": "example-user",
+    "summary": "Develops 'justice as fairness': principles a free and rational people would choose for the basic structure of society from behind a veil of ignorance about their own position in it. Argues for two principles — equal basic liberties for all, and social/economic inequalities only when they benefit the least-advantaged.",
+    "method": "Conceptual / contractarian argument rather than empirical. Uses the 'original position' thought experiment to derive principles, then defends them against utilitarian and intuitionist alternatives across roughly 600 pages.",
+    "evaluation": "Strong: the original position is a remarkably productive device for reasoning about distributive justice, and the lexical priority of liberty over the difference principle is carefully argued. Weaker: the assumption that contractors are rationally self-interested but mutually disinterested is doing a lot of work and is the target of communitarian and feminist critiques (Sandel, Okin) that are worth reading alongside.",
+    "relevance": "Reference work for any discussion of fairness in our research — algorithmic fairness, resource allocation, policy design. Cite for the difference principle when arguing that distributional choices should be evaluated by their effect on the worst-off group."
+  },
+  "highlights": []
+}

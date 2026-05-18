@@ -1,0 +1,18 @@
+{
+  "id": "kuhn-1962-structure",
+  "title": "The Structure of Scientific Revolutions",
+  "authors": ["Thomas S. Kuhn"],
+  "year": 1962,
+  "venue": "University of Chicago Press",
+  "url": "https://www.press.uchicago.edu/ucp/books/book/chicago/S/bo13179781.html",
+  "tags": ["philosophy of science", "paradigm", "history of science"],
+  "issue": 2,
+  "annotation": {
+    "author_github": "example-user",
+    "summary": "Argues that scientific progress is not a continuous accumulation of facts but a sequence of paradigms — frameworks of theory, instrumentation, and practice — punctuated by revolutionary shifts when anomalies overwhelm the prevailing paradigm.",
+    "method": "Historical analysis across physics, chemistry, and astronomy, surveying episodes such as the Copernican shift, the chemical revolution, and the rise of relativity. Concept-driven rather than empirical in any quantitative sense.",
+    "evaluation": "Influential but contested. The notion of incommensurability is doing a lot of work and has been criticized as overstating discontinuity between paradigms. Useful as a vocabulary even where one disagrees with the conclusions.",
+    "relevance": "Background for our methodology chapter; cite when discussing why disciplinary communities resist new measurement frameworks."
+  },
+  "highlights": []
+}

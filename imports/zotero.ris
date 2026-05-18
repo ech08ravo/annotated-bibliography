@@ -1,0 +1,6 @@
+Placeholder. Drop a real .ris file in this folder and push to main.
+The Import RIS GitHub Action will convert each record into a paper,
+create a discussion issue, update papers/index.json, and remove this file.
+
+This text is intentionally not valid RIS (no TY/ER tags), so the parser
+ignores it and the Action does nothing on first push.

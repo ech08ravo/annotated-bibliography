@@ -1,0 +1,43 @@
+name: Create discussion issues for new papers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "papers/*.json"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Create issues for papers missing one
+        id: issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/create-missing-issues.js
+
+      - name: Update papers/index.json
+        run: node scripts/update-index.js
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -n "$(git status --porcelain)" ]; then
+            git add -A
+            git commit -m "Wire up new papers (issues + index)"
+            git push
+          else
+            echo "No changes to commit."
+          fi

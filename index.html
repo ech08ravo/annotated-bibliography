@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shared Annotated Bibliography</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>Shared Annotated Bibliography</h1>
+    <p class="tagline">A reading list our group annotates together.</p>
+  </header>
+
+  <main>
+    <section class="toolbar">
+      <input type="search" id="search" placeholder="Search title, author, tag…" aria-label="Search papers">
+      <select id="sort" aria-label="Sort papers">
+        <option value="recent">Sort: newest first</option>
+        <option value="upvotes">Sort: most upvoted</option>
+        <option value="title">Sort: title A–Z</option>
+      </select>
+      <a class="btn-link" href="contribute.html">+ Add papers</a>
+    </section>
+
+    <div id="status" class="status" role="status"></div>
+    <ul id="papers" class="paper-list"></ul>
+  </main>
+
+  <footer class="site-footer">
+    <p>Want to add a paper? See <a href="CONTRIBUTING.md">CONTRIBUTING.md</a>.</p>
+  </footer>
+
+  <script src="js/github-api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

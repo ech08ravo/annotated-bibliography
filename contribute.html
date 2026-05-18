@@ -62,8 +62,9 @@
       Zotero (right-click → Export Items → format <em>RIS</em>) or
       EndNote (File → Export → output style <em>RefMan (RIS) Export</em>).
       Drop the <code>.ris</code> file below. Fill in your annotation for each paper,
-      then click <em>Download paper JSON</em>. Open a pull request adding the file(s) to <code>papers/</code> —
-      the rest (index entry, GitHub issue for comments and upvotes) is handled automatically by GitHub Actions when your PR merges.
+      then click <em>Open pull request on GitHub</em>. GitHub will open a pre-filled page —
+      sign in if needed, scroll down, and click <em>Propose changes</em>. The rest
+      (index entry, GitHub issue for comments and upvotes) is handled automatically when the PR merges.
     </div>
 
     <div id="dropzone" class="dropzone">
@@ -82,6 +83,7 @@
   </main>
 
   <script src="js/ris-parser.js"></script>
+  <script src="js/github-api.js"></script>
   <script src="js/contribute.js"></script>
 </body>
 </html>

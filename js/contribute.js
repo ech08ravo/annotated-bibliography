@@ -117,8 +117,9 @@
       </label>
 
       <div class="actions-row">
-        <button class="btn primary" data-act="download">Download paper JSON</button>
-        <button class="btn" data-act="copy">Copy JSON to clipboard</button>
+        <button class="btn primary" data-act="pr">Open pull request on GitHub</button>
+        <button class="btn" data-act="download">Download JSON</button>
+        <button class="btn" data-act="copy">Copy JSON</button>
         <button class="btn" data-act="dismiss">Dismiss</button>
       </div>
     `;
@@ -127,11 +128,27 @@
       const btn = e.target.closest("button");
       if (!btn) return;
       const current = readForm(div, paper);
+      if (btn.dataset.act === "pr")       openPR(current);
       if (btn.dataset.act === "download") downloadJSON(current);
       if (btn.dataset.act === "copy")     copyJSON(current);
       if (btn.dataset.act === "dismiss")  div.remove();
     });
     return div;
+  }
+
+  function openPR(paper) {
+    const json = JSON.stringify(paper, null, 2) + "\n";
+    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/new/main/papers`
+              + `?filename=${encodeURIComponent(paper.id + ".json")}`
+              + `&value=${encodeURIComponent(json)}`;
+    // GitHub URLs over ~8KB get truncated or rejected. Fall back to copy.
+    if (url.length > 7500) {
+      copyJSON(paper);
+      setStatus(`Annotation too long to send via URL — JSON copied to clipboard instead. Go to https://github.com/${GH_OWNER}/${GH_REPO}/new/main/papers, name the file "${paper.id}.json", and paste.`);
+      return;
+    }
+    window.open(url, "_blank", "noopener");
+    setStatus(`Opened GitHub in a new tab. Scroll down and click "Propose changes" to submit "${paper.title}".`);
   }
 
   function readForm(div, basePaper) {

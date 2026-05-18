@@ -1,12 +1,17 @@
 {
   "id": "kuhn-1962-structure",
   "title": "The Structure of Scientific Revolutions",
-  "authors": ["Thomas S. Kuhn"],
+  "authors": [
+    "Thomas S. Kuhn"
+  ],
   "year": 1962,
   "venue": "University of Chicago Press",
   "url": "https://www.press.uchicago.edu/ucp/books/book/chicago/S/bo13179781.html",
-  "tags": ["philosophy of science", "paradigm", "history of science"],
-  "issue": 2,
+  "tags": [
+    "philosophy of science",
+    "paradigm",
+    "history of science"
+  ],
   "annotation": {
     "author_github": "example-user",
     "summary": "Argues that scientific progress is not a continuous accumulation of facts but a sequence of paradigms — frameworks of theory, instrumentation, and practice — punctuated by revolutionary shifts when anomalies overwhelm the prevailing paradigm.",

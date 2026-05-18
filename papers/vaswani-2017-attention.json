@@ -1,14 +1,27 @@
 {
   "id": "vaswani-2017-attention",
   "title": "Attention Is All You Need",
-  "authors": ["Ashish Vaswani", "Noam Shazeer", "Niki Parmar", "Jakob Uszkoreit", "Llion Jones", "Aidan N. Gomez", "Łukasz Kaiser", "Illia Polosukhin"],
+  "authors": [
+    "Ashish Vaswani",
+    "Noam Shazeer",
+    "Niki Parmar",
+    "Jakob Uszkoreit",
+    "Llion Jones",
+    "Aidan N. Gomez",
+    "Łukasz Kaiser",
+    "Illia Polosukhin"
+  ],
   "year": 2017,
   "venue": "NeurIPS",
   "doi": "10.48550/arXiv.1706.03762",
   "url": "https://arxiv.org/abs/1706.03762",
   "pdf": "pdfs/vaswani-2017-attention.pdf",
-  "tags": ["attention", "transformers", "deep learning", "NLP"],
-  "issue": 1,
+  "tags": [
+    "attention",
+    "transformers",
+    "deep learning",
+    "NLP"
+  ],
   "annotation": {
     "author_github": "example-user",
     "summary": "Introduces the Transformer, a sequence-transduction architecture built entirely on self-attention, replacing recurrence and convolution. Demonstrates state-of-the-art results on English-to-German and English-to-French machine translation with substantially less training compute than prior recurrent models.",
@@ -20,7 +33,12 @@
     {
       "id": "h1",
       "page": 1,
-      "rect": [0.11, 0.31, 0.89, 0.36],
+      "rect": [
+        0.11,
+        0.31,
+        0.89,
+        0.36
+      ],
       "quote": "We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely.",
       "note": "Worth quoting verbatim — this is the thesis sentence and easy to mis-paraphrase.",
       "author_github": "example-user"
@@ -28,7 +46,12 @@
     {
       "id": "h2",
       "page": 3,
-      "rect": [0.10, 0.55, 0.90, 0.62],
+      "rect": [
+        0.10,
+        0.55,
+        0.90,
+        0.62
+      ],
       "quote": "The dominant sequence transduction models are based on complex recurrent or convolutional neural networks…",
       "note": "Good background framing — pair with §1 of Bahdanau et al. 2015 when writing the related-work section.",
       "author_github": "example-user"

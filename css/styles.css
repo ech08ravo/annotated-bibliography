@@ -91,7 +91,48 @@ main {
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 1rem 1.25rem;
+  position: relative;
 }
+
+.select-box {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.95rem;
+  cursor: pointer;
+}
+.select-box input { width: 1.05rem; height: 1.05rem; cursor: pointer; }
+.paper-card h2 { padding-right: 1.75rem; }
+
+/* generic button (shared with contribute page styling) */
+.btn {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--card);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.btn:hover { border-color: var(--accent); }
+
+.exportbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+.exportbar #export-count { font-weight: 600; }
+.exportbar .select-all { color: var(--muted); display: inline-flex; align-items: center; gap: 0.3rem; }
+.exportbar select { padding: 0.4rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; font: inherit; background: #fff; }
+.exportbar .btn-link { cursor: pointer; border: 1px solid var(--accent); }
+.cite-line { margin: 0.25rem 0 0; }
+.cite-line .cite-src { color: var(--muted); }
 
 .paper-card h2 {
   margin: 0 0 0.25rem;

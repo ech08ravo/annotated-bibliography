@@ -29,11 +29,24 @@
   const ann  = paper.annotation || {};
   const issueUrl = paper.issue ? GH.issueUrl(paper.issue) : null;
 
+  let citeLine = "";
+  if (paper.citations) {
+    const c = paper.citations;
+    const recent = (c.by_year || []).slice(-3).reverse()
+      .map(y => `${y.year}: ${Number(y.count).toLocaleString()}`).join(" · ");
+    const src = [c.source, c.retrieved].filter(Boolean).map(esc).join(", ");
+    citeLine = `<p class="meta cite-line">📊 Cited ${Number(c.count || 0).toLocaleString()} times`
+      + (src ? ` <span class="cite-src">· ${src}</span>` : "")
+      + (recent ? `<br><span class="cite-src">recent — ${esc(recent)}</span>` : "")
+      + `</p>`;
+  }
+
   root.innerHTML = `
     <header>
       <h1>${esc(paper.title)}</h1>
       <p class="meta">${meta}</p>
       <div class="paper-tags">${tags}</div>
+      ${citeLine}
     </header>
 
     <div class="actions">

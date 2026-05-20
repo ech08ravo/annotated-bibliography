@@ -20,12 +20,29 @@
         <option value="oldest">Sort: oldest first</option>
         <option value="upvotes">Sort: most upvoted</option>
         <option value="comments">Sort: most discussed</option>
+        <option value="citations">Sort: most cited</option>
         <option value="title">Sort: title A–Z</option>
       </select>
       <a class="btn-link" href="contribute.html">+ Add papers</a>
     </section>
 
     <nav id="tagbar" class="tagbar" aria-label="Filter by tag"></nav>
+
+    <div id="exportbar" class="exportbar" hidden>
+      <span id="export-count">0 selected</span>
+      <label class="select-all"><input type="checkbox" id="select-all"> Select all shown</label>
+      <select id="export-format" aria-label="Export format">
+        <option value="bibtex">BibTeX (.bib)</option>
+        <option value="ris">RIS (.ris)</option>
+        <option value="apa">APA</option>
+        <option value="mla">MLA</option>
+        <option value="chicago">Chicago</option>
+        <option value="markdown">Markdown</option>
+      </select>
+      <button id="export-download" class="btn-link" type="button">Export</button>
+      <button id="export-copy" class="btn" type="button">Copy</button>
+      <button id="export-clear" class="btn" type="button">Clear</button>
+    </div>
 
     <div id="status" class="status" role="status"></div>
     <ul id="papers" class="paper-list"></ul>
@@ -36,6 +53,7 @@
   </footer>
 
   <script src="js/github-api.js"></script>
+  <script src="js/export.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

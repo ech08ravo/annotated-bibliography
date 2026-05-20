@@ -1,13 +1,22 @@
-// Browser-side contribute page. Reads .ris file(s), parses them with
-// the shared RIS module, lets the user annotate each record, then
-// produces downloadable paper-JSON files.
+// Browser-side contribute page. Three ways in — a bibliographic file
+// (RIS or BibTeX), a link/DOI (metadata fetched from Crossref), or a PDF
+// (metadata read with PDF.js) — all converge on one annotate-and-submit UI.
+//
+// Submission today uses the no-backend paths (open a pre-filled PR, or
+// download/copy the JSON). submitPaper() is the single seam where a future
+// auth/write proxy can post on the user's behalf — see SUBMIT below.
 
 (function () {
-  const dropzone = document.getElementById("dropzone");
+  const dropzone  = document.getElementById("dropzone");
   const fileInput = document.getElementById("file");
+  const idInput   = document.getElementById("identifier");
+  const idBtn     = document.getElementById("identifier-btn");
+  const pdfInput  = document.getElementById("pdf");
   const recordsEl = document.getElementById("records");
   const statusEl  = document.getElementById("status");
   const ghUserEl  = document.getElementById("gh-user");
+
+  let nextIdx = 0;
 
   // Restore previously-entered username
   try {
@@ -19,8 +28,10 @@
   });
 
   function setStatus(msg) { statusEl.textContent = msg || ""; }
+  function ghUser() { return ghUserEl.value.trim(); }
 
-  // Drag-and-drop wiring
+  // ---- Method 1: bibliographic file (RIS or BibTeX) ----------------------
+
   ["dragenter", "dragover"].forEach(ev =>
     dropzone.addEventListener(ev, e => {
       e.preventDefault(); e.stopPropagation();
@@ -41,39 +52,164 @@
     if (!files.length) return;
     setStatus(`Reading ${files.length} file${files.length === 1 ? "" : "s"}…`);
 
-    let allRecords = [];
+    let records = [];
     for (const f of files) {
       try {
         const text = await f.text();
-        const recs = RIS.parseRIS(text);
-        if (!recs.length) {
-          console.warn(`No RIS records found in ${f.name}`);
-          continue;
-        }
-        allRecords = allRecords.concat(recs);
+        records = records.concat(parseBibliography(text, f.name));
       } catch (e) {
-        console.error(`Failed to parse ${f.name}`, e);
+        console.error(`Failed to read ${f.name}`, e);
       }
     }
 
-    if (!allRecords.length) {
-      setStatus("No records found. Make sure the file is a real RIS export (each record starts with TY  - and ends with ER  -).");
+    if (!records.length) {
+      setStatus("No records found. Make sure it's a real RIS export (records start with TY  - / end with ER  -) or a BibTeX file (@article{…}).");
       return;
     }
-
-    setStatus(`${allRecords.length} record${allRecords.length === 1 ? "" : "s"} parsed. Add your annotation for each, then download.`);
-    renderRecords(allRecords);
+    appendPapers(records.map(toPaper));
+    setStatus(`${records.length} record${records.length === 1 ? "" : "s"} parsed. Add your commentary for each, then submit.`);
   }
 
-  function renderRecords(records) {
-    recordsEl.innerHTML = "";
-    records.forEach((r, i) => {
-      const paper = RIS.toPaper(r, {
-        author_github: ghUserEl.value.trim() || "",
-      });
-      const node = recordNode(paper, i);
-      recordsEl.appendChild(node);
+  // Pick a parser by extension, then by content as a fallback.
+  function parseBibliography(text, name) {
+    const lower = (name || "").toLowerCase();
+    if (lower.endsWith(".bib") || lower.endsWith(".bibtex")) return BIB.parseBibTeX(text);
+    if (lower.endsWith(".ris")) return RIS.parseRIS(text);
+    const ris = RIS.parseRIS(text);
+    if (ris.length) return ris;
+    if (/@\w+\s*[{(]/.test(text)) return BIB.parseBibTeX(text);
+    return [];
+  }
+
+  // ---- Method 2: link or DOI (Crossref lookup) ---------------------------
+
+  idBtn.addEventListener("click", fetchByIdentifier);
+  idInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); fetchByIdentifier(); }
+  });
+
+  async function fetchByIdentifier() {
+    const raw = idInput.value.trim();
+    if (!raw) return;
+    const doi = extractDoi(raw);
+
+    if (doi) {
+      setStatus(`Looking up ${doi} on Crossref…`);
+      try {
+        const res = await fetch(
+          `https://api.crossref.org/works/${encodeURIComponent(doi)}`,
+          { headers: { "Accept": "application/json" } }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const paper = toPaper(crossrefToRecord(data.message));
+        appendPapers([paper]);
+        setStatus(`Found "${paper.title}". Add your commentary, then submit.`);
+      } catch (e) {
+        setStatus(`Couldn't reach Crossref for ${doi} (${e.message}). Added a blank entry — fill it in below.`);
+        appendPapers([toPaper({ title: "", authors: [], year: null, venue: "", doi, url: "", abstract: "", tags: [] })]);
+      }
+    } else if (/^https?:\/\//i.test(raw)) {
+      appendPapers([toPaper({ title: "", authors: [], year: null, venue: "", doi: "", url: raw, abstract: "", tags: [] })]);
+      setStatus("Added a link. Fill in the title and details, then submit.");
+    } else {
+      setStatus("Enter a DOI (e.g. 10.1000/xyz) or a full URL (https://…).");
+      return;
+    }
+    idInput.value = "";
+  }
+
+  function extractDoi(s) {
+    const m = String(s).match(/10\.\d{4,9}\/[^\s"'<>]+/i);
+    return m ? m[0].replace(/[.,;)]+$/, "") : "";
+  }
+
+  function crossrefToRecord(m) {
+    m = m || {};
+    const authors = (m.author || [])
+      .map(a => [a.given, a.family].filter(Boolean).join(" ").trim() || a.name || "")
+      .filter(Boolean);
+    const dp = (m.issued && m.issued["date-parts"] && m.issued["date-parts"][0]) || [];
+    const abstract = m.abstract
+      ? String(m.abstract).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
+      : "";
+    return {
+      title: (m.title && m.title[0]) || "(untitled)",
+      authors,
+      year: dp[0] || null,
+      venue: (m["container-title"] && m["container-title"][0]) || m.publisher || "",
+      publisher: m.publisher || "",
+      doi: m.DOI || "",
+      url: m.URL || "",
+      abstract,
+      tags: (m.subject || []).slice(0, 8),
+    };
+  }
+
+  // ---- Method 3: PDF (metadata via PDF.js) -------------------------------
+
+  pdfInput.addEventListener("change", () => {
+    const f = (pdfInput.files || [])[0];
+    if (f) handlePdf(f);
+  });
+
+  let _pdfjs;
+  function ensurePdfJs() {
+    if (typeof pdfjsLib !== "undefined") return Promise.resolve(pdfjsLib);
+    if (_pdfjs) return _pdfjs;
+    _pdfjs = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      s.onload = () => {
+        try {
+          pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+        } catch (_) {}
+        resolve(pdfjsLib);
+      };
+      s.onerror = () => reject(new Error("PDF.js failed to load"));
+      document.head.appendChild(s);
     });
+    return _pdfjs;
+  }
+
+  async function readPdfMeta(file) {
+    try {
+      const lib = await ensurePdfJs();
+      const buf = await file.arrayBuffer();
+      const pdf = await lib.getDocument({ data: buf }).promise;
+      const md = await pdf.getMetadata();
+      const info = (md && md.info) || {};
+      return { title: (info.Title || "").trim(), author: (info.Author || "").trim() };
+    } catch (_) { return {}; }
+  }
+
+  async function handlePdf(file) {
+    setStatus(`Reading ${file.name}…`);
+    const meta = await readPdfMeta(file);
+    const fromName = file.name.replace(/\.pdf$/i, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+    const authors = meta.author
+      ? meta.author.split(/\s*;\s*|\s+and\s+|\s*,\s*(?=[A-Z])/).map(s => BIB.normalizeAuthor(s)).filter(Boolean)
+      : [];
+    const paper = toPaper({
+      title: meta.title || fromName || "(untitled)",
+      authors, year: null, venue: "", doi: "", url: "", abstract: "", tags: [],
+    });
+    paper.pdf = `${paper.id}.pdf`;
+    paper._pdfPending = file.name;
+    appendPapers([paper]);
+    setStatus(`Read "${file.name}". Add commentary, then submit — and attach the PDF as papers/pdfs/${paper.pdf} in the PR.`);
+    pdfInput.value = "";
+  }
+
+  // ---- Shared: build a paper, render the form, submit --------------------
+
+  function toPaper(record) {
+    return RIS.toPaper(record, { author_github: ghUser() });
+  }
+
+  function appendPapers(papers) {
+    papers.forEach(paper => recordsEl.appendChild(recordNode(paper, nextIdx++)));
   }
 
   function recordNode(paper, idx) {
@@ -84,9 +220,18 @@
     const authorList = (paper.authors || []).join(", ");
     const meta = [authorList, paper.year, paper.venue].filter(Boolean).join(" · ");
 
+    const pdfNote = paper._pdfPending
+      ? `<div class="help-box" style="margin:0 0 0.75rem;">
+           <strong>PDF:</strong> binary files can't ride along in the pre-filled link.
+           After opening the PR, add <code>${escapeHTML(paper._pdfPending)}</code> to the repo
+           at <code>papers/pdfs/${escapeHTML(paper.pdf)}</code>.
+         </div>`
+      : "";
+
     div.innerHTML = `
-      <h3>${escapeHTML(paper.title)}</h3>
+      <h3>${escapeHTML(paper.title || "(untitled)")}</h3>
       <p class="meta">${escapeHTML(meta)}</p>
+      ${pdfNote}
 
       <div class="row">
         <label class="field">
@@ -99,20 +244,31 @@
         </label>
       </div>
 
+      <div class="row">
+        <label class="field">
+          <span>Title</span>
+          <input type="text" data-field="title" value="${escapeAttr(paper.title || "")}">
+        </label>
+        <label class="field">
+          <span>Year</span>
+          <input type="text" data-field="year" value="${escapeAttr(paper.year || "")}">
+        </label>
+      </div>
+
       <label class="field">
-        <span>Summary — one paragraph: what does the paper claim?</span>
+        <span>Commentary — your annotation: what does this paper claim, and why is it on our list?</span>
         <textarea data-field="summary">${escapeHTML(paper.annotation.summary || "")}</textarea>
       </label>
       <label class="field">
-        <span>Method — how do they test it?</span>
+        <span>Method <span class="small">(optional)</span> — how do they test it?</span>
         <textarea data-field="method"></textarea>
       </label>
       <label class="field">
-        <span>Evaluation — strengths, weaknesses, what convinced you</span>
+        <span>Evaluation <span class="small">(optional)</span> — strengths, weaknesses, what convinced you</span>
         <textarea data-field="evaluation"></textarea>
       </label>
       <label class="field">
-        <span>Relevance — why this is on our list</span>
+        <span>Relevance <span class="small">(optional)</span> — why this is on our list</span>
         <textarea data-field="relevance"></textarea>
       </label>
 
@@ -128,12 +284,45 @@
       const btn = e.target.closest("button");
       if (!btn) return;
       const current = readForm(div, paper);
-      if (btn.dataset.act === "pr")       openPR(current);
+      if (btn.dataset.act === "pr")       submitPaper(current);
       if (btn.dataset.act === "download") downloadJSON(current);
       if (btn.dataset.act === "copy")     copyJSON(current);
       if (btn.dataset.act === "dismiss")  div.remove();
     });
     return div;
+  }
+
+  function readForm(div, basePaper) {
+    const get = (f) => (div.querySelector(`[data-field="${f}"]`) || {}).value || "";
+    const tags = get("tags").split(",").map(s => s.trim()).filter(Boolean);
+    const yearRaw = get("year").trim();
+    const yearMatch = yearRaw.match(/\d{4}/);
+    const paper = {
+      ...basePaper,
+      id: get("id").trim() || basePaper.id,
+      title: get("title").trim() || basePaper.title,
+      year: yearMatch ? parseInt(yearMatch[0], 10) : (basePaper.year || null),
+      tags,
+      annotation: {
+        author_github: ghUser() || basePaper.annotation.author_github || "",
+        summary:    get("summary").trim(),
+        method:     get("method").trim(),
+        evaluation: get("evaluation").trim(),
+        relevance:  get("relevance").trim()
+      },
+      highlights: basePaper.highlights || []
+    };
+    if (basePaper.pdf) paper.pdf = basePaper.pdf;
+    delete paper._pdfPending;   // internal UI marker, never written out
+    return paper;
+  }
+
+  // SUBMIT — the single seam for the write path.
+  // Today: open a pre-filled "new file" PR on GitHub (no backend needed).
+  // Later: if an auth/write proxy is configured, POST there to commit on the
+  // user's behalf. Keep all submission routing in this one function.
+  function submitPaper(paper) {
+    openPR(paper);
   }
 
   function openPR(paper) {
@@ -149,23 +338,6 @@
     }
     window.open(url, "_blank", "noopener");
     setStatus(`Opened GitHub in a new tab. Scroll down and click "Propose changes" to submit "${paper.title}".`);
-  }
-
-  function readForm(div, basePaper) {
-    const get = (f) => (div.querySelector(`[data-field="${f}"]`) || {}).value || "";
-    const tags = get("tags").split(",").map(s => s.trim()).filter(Boolean);
-    return {
-      ...basePaper,
-      id: get("id").trim() || basePaper.id,
-      tags,
-      annotation: {
-        author_github: ghUserEl.value.trim() || basePaper.annotation.author_github || "",
-        summary:    get("summary").trim(),
-        method:     get("method").trim(),
-        evaluation: get("evaluation").trim(),
-        relevance:  get("relevance").trim()
-      }
-    };
   }
 
   function downloadJSON(paper) {

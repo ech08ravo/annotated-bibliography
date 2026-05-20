@@ -17,11 +17,15 @@
       <input type="search" id="search" placeholder="Search title, author, tag…" aria-label="Search papers">
       <select id="sort" aria-label="Sort papers">
         <option value="recent">Sort: newest first</option>
+        <option value="oldest">Sort: oldest first</option>
         <option value="upvotes">Sort: most upvoted</option>
+        <option value="comments">Sort: most discussed</option>
         <option value="title">Sort: title A–Z</option>
       </select>
       <a class="btn-link" href="contribute.html">+ Add papers</a>
     </section>
+
+    <nav id="tagbar" class="tagbar" aria-label="Filter by tag"></nav>
 
     <div id="status" class="status" role="status"></div>
     <ul id="papers" class="paper-list"></ul>

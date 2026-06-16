@@ -56,6 +56,11 @@
       ${issueUrl ? `<a href="${issueUrl}" target="_blank" rel="noopener" id="upvote-link">👍 React on GitHub</a>` : ""}
     </div>
 
+    <section class="rating-block">
+      <h3>Rating</h3>
+      <div id="rating-area" class="rating-area">…</div>
+    </section>
+
     <section class="annotation">
       ${ann.author_github ? `<p class="meta">Annotated by <a href="https://github.com/${esc(ann.author_github)}" target="_blank" rel="noopener">@${esc(ann.author_github)}</a></p>` : ""}
       ${section("Summary", ann.summary)}
@@ -118,6 +123,58 @@
   } else {
     document.getElementById("stats").textContent =
       "No GitHub issue linked for this paper — no comments yet.";
+  }
+
+  // --- ratings ------------------------------------------------------------
+  if (typeof Ratings !== "undefined") {
+    renderRating();
+  }
+
+  async function renderRating() {
+    const area = document.getElementById("rating-area");
+    if (!area) return;
+    const [data, user] = await Promise.all([Ratings.get(id), Ratings.me()]);
+    const avg = data?.average, count = data?.count || 0, your = data?.your_rating || 0;
+
+    const summary = Ratings.starsStatic(avg, count);
+    let body;
+    if (user) {
+      body = `<div class="rating-mine">
+                <span class="rating-label">Your rating:</span>
+                ${Ratings.starsInteractive(your)}
+              </div>
+              <p class="meta rating-avg">Average: ${summary}</p>
+              <p class="meta rating-msg" id="rating-msg"></p>`;
+    } else {
+      body = `<p class="meta rating-avg">Average: ${summary}</p>
+              <p class="meta"><button type="button" class="btn" id="rating-signin">Sign in with GitHub to rate</button></p>`;
+    }
+    area.innerHTML = body;
+
+    const signin = document.getElementById("rating-signin");
+    if (signin) signin.addEventListener("click", () => Ratings.login());
+
+    area.querySelectorAll(".star-btn").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const stars = Number(btn.dataset.stars);
+        const msg = document.getElementById("rating-msg");
+        if (msg) msg.textContent = "Saving…";
+        try {
+          const res = await Ratings.post(id, stars);
+          // re-render with the new state
+          area.querySelectorAll(".star-btn").forEach((b, i) => {
+            const on = i < stars;
+            b.classList.toggle("on", on);
+            b.textContent = on ? "★" : "☆";
+          });
+          const avgEl = area.querySelector(".rating-avg");
+          if (avgEl) avgEl.innerHTML = "Average: " + Ratings.starsStatic(res.average, res.count);
+          if (msg) msg.textContent = "Saved — you rated this " + stars + " star" + (stars === 1 ? "" : "s") + ".";
+        } catch (e) {
+          if (msg) msg.textContent = e.message || "Couldn't save rating.";
+        }
+      });
+    });
   }
 
   function section(title, body) {

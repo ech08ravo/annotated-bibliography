@@ -69,6 +69,10 @@
     try { p._stats = await GH.getIssueStats(p.issue); } catch (_) {}
   }));
 
+  // Ratings: one batch call for all papers, best-effort.
+  const ratingMap = (typeof Ratings !== "undefined") ? await Ratings.all() : {};
+  papers.forEach(p => { p._rating = ratingMap[p.id] || { count: 0, average: null }; });
+
   // --- filtering ----------------------------------------------------------
   function matchesSearch(p, q) {
     if (!q) return true;
@@ -96,6 +100,7 @@
       if (sort === "upvotes")  return (b._stats.upvotes || 0) - (a._stats.upvotes || 0);
       if (sort === "comments") return (b._stats.comments || 0) - (a._stats.comments || 0);
       if (sort === "citations")return (b.citations?.count || 0) - (a.citations?.count || 0);
+      if (sort === "rated")    return (b._rating?.average || 0) - (a._rating?.average || 0) || (b._rating?.count || 0) - (a._rating?.count || 0);
       if (sort === "oldest")   return (a.year || 0) - (b.year || 0) || (a.title || "").localeCompare(b.title || "");
       return (b.year || 0) - (a.year || 0) || (a.title || "").localeCompare(b.title || ""); // recent
     });
@@ -167,6 +172,7 @@
         ${summary}
         <div class="paper-footer">
           <div class="counts">
+            ${typeof Ratings !== "undefined" ? Ratings.starsStatic(p._rating?.average, p._rating?.count || 0) : ""}
             <span title="Upvotes on GitHub issue">👍 ${p._stats.upvotes}</span>
             <span title="Comments on GitHub issue">💬 ${p._stats.comments}</span>
             <span title="Inline highlights">✏️ ${hCount}</span>

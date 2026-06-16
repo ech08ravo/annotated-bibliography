@@ -21,6 +21,9 @@ submissions (Phase 1) and comments (Phase 4) become additional routers later.
 | POST   | `/ratings`           | bearer | upsert `{paper_id, stars}` (1–5)         |
 | GET    | `/ratings/{paper_id}`| opt    | average + count (+ your rating if auth)  |
 | GET    | `/ratings`           | no     | all paper averages (for cards)           |
+| GET    | `/comments/{paper_id}`| no    | all comments for a paper (grouped by section client-side) |
+| POST   | `/comments`          | bearer | post `{paper_id, section, body}`         |
+| DELETE | `/comments/{id}`     | bearer | delete your own comment                  |
 
 ## Deploy (on the server)
 

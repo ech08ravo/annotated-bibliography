@@ -25,7 +25,7 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
-from pydantic import BaseModel, conint
+from pydantic import BaseModel, conint, constr
 
 # --- config (all from env; nothing secret hardcoded) -------------------------
 
@@ -71,6 +71,22 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS comments (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                paper_id   TEXT    NOT NULL,
+                section    TEXT    NOT NULL,
+                gh_user_id INTEGER NOT NULL,
+                gh_login   TEXT    NOT NULL,
+                body       TEXT    NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_comments_paper ON comments(paper_id)"
+        )
         conn.commit()
 
 
@@ -101,15 +117,18 @@ def current_user(authorization: str = Header(default="")) -> User:
 
 # --- app ---------------------------------------------------------------------
 
-app = FastAPI(title="Textbook API", version="0.1.0")
+app = FastAPI(title="Textbook API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
     allow_credentials=False,
 )
+
+# Annotation sections a comment thread can attach to (+ "general" for the paper).
+ALLOWED_SECTIONS = {"summary", "method", "evaluation", "relevance", "general"}
 
 
 @app.on_event("startup")
@@ -243,3 +262,66 @@ def all_ratings():
     return {
         r["paper_id"]: {"count": r["n"], "average": round(r["avg"], 2)} for r in rows
     }
+
+
+# --- comments (per annotation section) --------------------------------------
+
+
+class CommentIn(BaseModel):
+    paper_id: str
+    section: str
+    body: constr(strip_whitespace=True, min_length=1, max_length=5000)
+
+
+def _comment_row(r):
+    return {
+        "id": r["id"],
+        "section": r["section"],
+        "login": r["gh_login"],
+        "user_id": r["gh_user_id"],
+        "body": r["body"],
+        "created_at": r["created_at"],
+    }
+
+
+@app.get("/comments/{paper_id}")
+def get_comments(paper_id: str):
+    """All comments for a paper, oldest first. The front-end groups by section."""
+    with closing(db()) as conn:
+        rows = conn.execute(
+            "SELECT * FROM comments WHERE paper_id = ? ORDER BY created_at ASC",
+            (paper_id,),
+        ).fetchall()
+    return {"paper_id": paper_id, "comments": [_comment_row(r) for r in rows]}
+
+
+@app.post("/comments")
+def post_comment(body: CommentIn, user: User = Depends(current_user)):
+    if body.section not in ALLOWED_SECTIONS:
+        raise HTTPException(400, f"Invalid section. Allowed: {sorted(ALLOWED_SECTIONS)}")
+    now = int(time.time())
+    with closing(db()) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO comments (paper_id, section, gh_user_id, gh_login, body, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (body.paper_id, body.section, user.id, user.login, body.body, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM comments WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return _comment_row(row)
+
+
+@app.delete("/comments/{comment_id}")
+def delete_comment(comment_id: int, user: User = Depends(current_user)):
+    """A user may delete only their own comment."""
+    with closing(db()) as conn:
+        row = conn.execute("SELECT gh_user_id FROM comments WHERE id = ?", (comment_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Comment not found")
+        if row["gh_user_id"] != user.id:
+            raise HTTPException(403, "You can only delete your own comment")
+        conn.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
+        conn.commit()
+    return {"deleted": comment_id}

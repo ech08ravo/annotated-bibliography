@@ -63,10 +63,10 @@
 
     <section class="annotation">
       ${ann.author_github ? `<p class="meta">Annotated by <a href="https://github.com/${esc(ann.author_github)}" target="_blank" rel="noopener">@${esc(ann.author_github)}</a></p>` : ""}
-      ${section("Summary", ann.summary)}
-      ${section("Method", ann.method)}
-      ${section("Evaluation", ann.evaluation)}
-      ${section("Relevance", ann.relevance)}
+      ${section("Summary", ann.summary, "summary")}
+      ${section("Method", ann.method, "method")}
+      ${section("Evaluation", ann.evaluation, "evaluation")}
+      ${section("Relevance", ann.relevance, "relevance")}
     </section>
 
     ${paper.pdf ? `
@@ -177,9 +177,95 @@
     });
   }
 
-  function section(title, body) {
+  function section(title, body, key) {
     if (!body) return "";
-    return `<section><h3>${title}</h3><p>${esc(body)}</p></section>`;
+    const thread = key ? `<div class="comment-thread" data-section="${key}"></div>` : "";
+    return `<section><h3>${title}</h3><p>${esc(body)}</p>${thread}</section>`;
+  }
+
+  // --- comments (per annotation section) ----------------------------------
+  if (typeof Comments !== "undefined") {
+    renderComments();
+  }
+
+  async function renderComments() {
+    const threads = Array.from(document.querySelectorAll(".comment-thread"));
+    if (!threads.length) return;
+    const [data, user] = await Promise.all([Comments.list(id), Ratings.me()]);
+    const bySection = {};
+    (data?.comments || []).forEach(c => { (bySection[c.section] = bySection[c.section] || []).push(c); });
+
+    threads.forEach(el => {
+      const sec = el.dataset.section;
+      el.innerHTML = threadHTML(sec, bySection[sec] || [], user);
+      wireThread(el, sec, user);
+    });
+  }
+
+  function threadHTML(sec, list, user) {
+    const items = list.map(c => commentItemHTML(c, user)).join("")
+      || `<li class="comment-empty">No comments yet.</li>`;
+    const form = user
+      ? `<form class="comment-form">
+           <textarea class="comment-input" rows="2" maxlength="5000" placeholder="Add a comment on the ${esc(sec)}…"></textarea>
+           <button type="submit" class="btn">Post</button>
+         </form>`
+      : `<p class="meta"><button type="button" class="btn comment-signin">Sign in with GitHub to comment</button></p>`;
+    return `
+      <button type="button" class="thread-toggle" aria-expanded="false">💬 ${list.length} comment${list.length === 1 ? "" : "s"}</button>
+      <div class="thread-body" hidden>
+        <ul class="comment-list">${items}</ul>
+        ${form}
+      </div>`;
+  }
+
+  function commentItemHTML(c, user) {
+    const mine = user && user.id === c.user_id;
+    const del = mine ? `<button type="button" class="comment-del" data-id="${c.id}" title="Delete">✕</button>` : "";
+    const when = new Date((c.created_at || 0) * 1000).toLocaleDateString();
+    return `
+      <li data-id="${c.id}">
+        <div class="by"><a href="https://github.com/${esc(c.login)}" target="_blank" rel="noopener">@${esc(c.login)}</a> · ${when} ${del}</div>
+        <div class="body">${esc(c.body)}</div>
+      </li>`;
+  }
+
+  function wireThread(el, sec, user) {
+    const toggle = el.querySelector(".thread-toggle");
+    const bodyEl = el.querySelector(".thread-body");
+    if (toggle && bodyEl) toggle.addEventListener("click", () => {
+      const open = bodyEl.hidden;
+      bodyEl.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+    });
+
+    const signin = el.querySelector(".comment-signin");
+    if (signin) signin.addEventListener("click", () => Ratings.login());
+
+    const form = el.querySelector(".comment-form");
+    if (form) form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const ta = form.querySelector(".comment-input");
+      const text = (ta.value || "").trim();
+      if (!text) return;
+      const btn = form.querySelector("button");
+      btn.disabled = true;
+      try {
+        await Comments.post(id, sec, text);
+        ta.value = "";
+        await renderComments();
+        const reopen = document.querySelector(`.comment-thread[data-section="${sec}"] .thread-toggle`);
+        if (reopen) reopen.click();
+      } catch (err) {
+        alert(err.message || "Couldn't post comment.");
+      } finally { btn.disabled = false; }
+    });
+
+    el.querySelectorAll(".comment-del").forEach(b => b.addEventListener("click", async () => {
+      if (!confirm("Delete this comment?")) return;
+      try { await Comments.remove(Number(b.dataset.id)); await renderComments(); }
+      catch (err) { alert(err.message || "Couldn't delete."); }
+    }));
   }
   function highlightItemHTML(h) {
     const by = h.author_github

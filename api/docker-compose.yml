@@ -1,0 +1,13 @@
+services:
+  textbook-api:
+    build: .
+    container_name: textbook-api
+    restart: unless-stopped
+    # Publish ONLY to the docker bridge so nginx can reach it; never exposed
+    # directly to the internet (nginx terminates TLS and proxies in).
+    ports:
+      - "172.17.0.1:8090:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data

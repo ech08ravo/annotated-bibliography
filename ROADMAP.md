@@ -1,7 +1,10 @@
 # Roadmap — Shared Annotated Bibliography
 
 Planning doc translating the feature wishlist into a sequenced, architecture-aware plan.
-Draft for review — nothing here is built yet.
+
+**Status (2026-07):** Phases 0–6 are built and live. The static site is deployed on
+GitHub Pages and the auth/write proxy runs at `textbook-api.webgrid.online`. Remaining
+work is polish and real data rather than new architecture — see the per-phase notes below.
 
 ## Guiding principle
 
@@ -44,14 +47,18 @@ stood up.
 
 ---
 
-## Phase 0 — Config & deploy hygiene (quick)
+## Phase 0 — Config & deploy hygiene (quick) — ✅ done
+
+Repo coordinates are `ech08ravo/annotated-bibliography`; Pages is live; the Actions run
+green against it.
+
 
 `js/github-api.js` currently points at `GH_OWNER = "ech08ravo"`,
 `GH_REPO = "annotated-bibliography"`. Confirm the real repo coordinates, enable GitHub
 Pages, and verify the existing Actions (`import-ris.yml`, `create-issues.yml`) run against
 the live repo. Foundation for everything else.
 
-## Phase 1 — Easy "submit a document + commentary" (first build)
+## Phase 1 — Easy "submit a document + commentary" (first build) — ✅ done
 
 The contribution flow accepts any of:
 
@@ -67,43 +74,65 @@ Work: extend `js/ris-parser.js` to also parse BibTeX; extend `contribute.html` /
 `contribute.js` for the three input modes + PDF upload; wire the write path through the
 proxy (fallback: today's "download JSON → drop in `imports/`" flow).
 
-## Phase 2 — Browsing as much as contributing
+## Phase 2 — Browsing as much as contributing — ✅ done
 
 Make discovery first-class on `index.html`: full-text search over title/authors/annotation,
 filter by tag, and sort (year, recently added — and average rating once Phase 3 lands).
 Pure front-end.
 
-## Phase 3 — 5-star ratings with averages
+## Phase 3 — 5-star ratings with averages — ✅ done
+
+Live: the proxy stores one rating per GitHub user in SQLite and the site renders averages
+on cards and the detail page.
+
 
 Logged-in users rate a paper 1–5; the proxy records one rating per user (App-committed
 data file per paper), and the site shows the average on cards and the detail page.
 This is the feature most worth your own server if GitHub-committed ratings feel heavy.
 
-## Phase 4 — Comments on annotations
+## Phase 4 — Comments on annotations — ✅ done
+
+Implemented as per-section comment threads stored by the proxy (chosen over
+issue-per-annotation), posted from the site and rendered inline on the paper page.
+
 
 Move from per-paper comments to per-annotation: surface the thread inline on the paper page
 and let users post from the site (via the proxy) rather than only clicking through to
 GitHub. Mechanism TBD — structured issue comments vs. issue-per-annotation.
 
-## Phase 5 — Citation data (scite-style)
+## Phase 5 — Citation data (scite-style) — ✅ done (OpenAlex; supporting/contrasting breakdown not yet)
+
+A scheduled Action (`.github/workflows/`, `scripts/enrich-citations.js`) enriches each
+paper from OpenAlex. Matching is DOI-first with a year-guarded title-search fallback for
+papers whose DOI isn't indexed (e.g. arXiv `10.48550/arXiv.*`) or that have no DOI. The
+scite-style supporting/mentioning/contrasting breakdown is not implemented — OpenAlex
+gives counts and by-year totals only.
+
 
 A scheduled Action enriches each paper with citation count and, where available, the
 supporting / mentioning / contrasting breakdown (scite's "Smart Citations" model), pulling
 from OpenAlex or Semantic Scholar (free) or scite's API (token required). Displayed as
 badges on cards and the detail page.
 
-## Phase 6 — Export curated reference list
+## Phase 6 — Export curated reference list — ✅ done
 
 Multi-select papers and export the selection to BibTeX, RIS, formatted citations
 (APA / MLA / Chicago), or Markdown. Pure front-end.
 
 ---
 
-## Open questions to confirm before building
+## Resolved decisions
 
-- **Repo coordinates** for Phase 0 (the real owner/repo to point at).
-- **Submission gating:** should submitting require a GitHub login, or allow anonymous
-  submissions that you moderate?
-- **Your server's stack** (so I can spec the auth/write proxy to match — Node, Python, etc).
-- **scite access:** do you have a scite API token, or should we plan on OpenAlex/Semantic
-  Scholar for citation data?
+- **Repo coordinates:** `ech08ravo/annotated-bibliography`, served on GitHub Pages.
+- **Proxy stack:** Python (FastAPI + SQLite), containerised — see `api/`.
+- **Citation source:** OpenAlex (free, no key); scite's supporting/contrasting breakdown
+  deferred.
+
+## Remaining polish (post-build)
+
+- **scite-style breakdown** for Phase 5 (supporting / mentioning / contrasting) if a data
+  source becomes available.
+- **Submission gating** — confirm whether submitting should require a GitHub login vs.
+  moderated anonymous submissions.
+- **Seed citation data:** the sample papers only populate once the enrich Action runs (or
+  is triggered manually); the arXiv-DOI paper relies on the title-search fallback.

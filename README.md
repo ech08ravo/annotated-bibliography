@@ -6,17 +6,27 @@ A collaborative tool for academic teams to share, annotate, and discuss papers. 
 
 - **Papers** live in `papers/` as one JSON file per paper, plus an optional PDF in `papers/pdfs/`.
 - **Annotations** are part of each paper file: a long-form bibliographic annotation (summary / method / evaluation / relevance) and an optional list of inline PDF highlights with notes.
-- **Comments and upvotes** live on GitHub Issues. Each paper is auto-linked to one issue in this repo. Reactions (👍) are upvotes, issue comments are the comment thread. Contributors authenticate as themselves through GitHub — no separate accounts.
+- **Upvotes and the paper-level discussion** live on GitHub Issues. Each paper is auto-linked to one issue in this repo; reactions (👍) are upvotes and issue comments are the paper-level thread, read unauthenticated and shown as counts. **Per-annotation comments and 5-star ratings** are handled by the write proxy (see below), where contributors sign in through GitHub — no separate accounts.
 - **Adding a paper** uses one of three paths described in [CONTRIBUTING.md](CONTRIBUTING.md): a web form that imports an RIS export from Zotero or EndNote, a `imports/` folder for bulk RIS dumps, or a hand-edited JSON file.
+
+## Ratings, comments & sign-in
+
+Beyond the static site, a small **write proxy** (see [`api/`](api/) — Python / FastAPI +
+SQLite, containerised, running at `textbook-api.webgrid.online`) handles the things GitHub
+Pages can't do on its own: GitHub sign-in (OAuth web flow), 5-star ratings (one per user
+per paper), and per-annotation comment threads. The front-end talks to it over HTTPS
+(`js/ratings.js`, `js/comments.js`); if the proxy is unreachable, ratings/comments simply
+don't show and the rest of the site is unaffected.
 
 ## Automation
 
-Two GitHub Actions keep the bookkeeping out of contributors' way:
+GitHub Actions keep the bookkeeping out of contributors' way:
 
 - **`.github/workflows/import-ris.yml`** — when a `.ris` file lands in `imports/`, convert each record to a paper JSON, create its issue, update the index, and delete the import file.
 - **`.github/workflows/create-issues.yml`** — whenever a paper JSON lands without an `issue` field, create the matching discussion issue and write the number back into the JSON. Also keeps `papers/index.json` in sync with what's actually in `papers/`.
+- **`.github/workflows/enrich-citations.yml`** (scheduled) — enriches each paper with OpenAlex citation data (`scripts/enrich-citations.js`): DOI lookup first, with a year-guarded title-search fallback for papers whose DOI isn't indexed or that have none.
 
-Both rely only on the default `GITHUB_TOKEN`, which the workflow files request the right permissions for.
+These rely only on the default `GITHUB_TOKEN`, which the workflow files request the right permissions for.
 
 ## Repo layout
 
@@ -27,19 +37,26 @@ Both rely only on the default `GITHUB_TOKEN`, which the workflow files request t
 ├── contribute.html                  # in-browser RIS importer
 ├── css/styles.css
 ├── js/
-│   ├── app.js                       # listing page logic
+│   ├── app.js                       # listing page logic (search / sort / tags / export)
 │   ├── paper.js                     # detail page logic
 │   ├── pdf-viewer.js                # PDF.js + highlight overlay
 │   ├── github-api.js                # fetches reactions + comments
+│   ├── ratings.js                   # ratings + GitHub sign-in client (talks to api/)
+│   ├── comments.js                  # per-annotation comment client (talks to api/)
+│   ├── export.js                    # BibTeX / RIS / APA / MLA / Chicago / Markdown
 │   ├── ris-parser.js                # RIS parser (used in browser and Node)
+│   ├── bibtex-parser.js             # BibTeX parser (used in browser and Node)
 │   └── contribute.js                # contribute page logic
+├── api/                             # Python write proxy: sign-in, ratings, comments
 ├── scripts/
 │   ├── import-ris.js                # consumes imports/*.ris -> papers/*.json
 │   ├── create-missing-issues.js     # creates GitHub Issues for new papers
+│   ├── enrich-citations.js          # adds OpenAlex citation data to papers/*.json
 │   └── update-index.js              # rebuilds papers/index.json from disk
 ├── .github/workflows/
 │   ├── import-ris.yml
-│   └── create-issues.yml
+│   ├── create-issues.yml
+│   └── enrich-citations.yml
 ├── papers/
 │   ├── index.json                   # ordered list of paper ids
 │   ├── <id>.json                    # one file per paper
@@ -77,4 +94,11 @@ The site uses the unauthenticated GitHub REST API for reads (issues and comments
 
 ## Status
 
-Walking skeleton with automation. Working end-to-end: list papers, view a paper, see PDF highlights, see comments + upvote count, click through to GitHub to comment or react. Two routes for adding papers (web form, bulk RIS in `imports/`) and a fallback hand-edit path. Styling is minimal on purpose — easy to replace later.
+Live and feature-complete against the [roadmap](ROADMAP.md) (Phases 0–6). Working
+end-to-end: browse papers (search / sort / tag filter / shareable URLs), view a paper with
+its annotation and inline highlights, sign in with GitHub, rate papers (1–5 stars with
+averages), comment per annotation section, see upvote/comment counts from GitHub Issues,
+and export a curated selection to BibTeX / RIS / APA / MLA / Chicago / Markdown. Three
+routes for adding papers (web form, bulk RIS in `imports/`, hand-edited JSON). Citation
+data is refreshed from OpenAlex on a schedule. Styling is minimal on purpose — easy to
+replace later.

@@ -15,7 +15,6 @@
   "venue": "NeurIPS",
   "doi": "10.48550/arXiv.1706.03762",
   "url": "https://arxiv.org/abs/1706.03762",
-  "pdf": "pdfs/vaswani-2017-attention.pdf",
   "tags": [
     "attention",
     "transformers",

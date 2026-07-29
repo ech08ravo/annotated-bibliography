@@ -3,8 +3,11 @@
 Planning doc translating the feature wishlist into a sequenced, architecture-aware plan.
 
 **Status (2026-07):** Phases 0–6 are built and live. The static site is deployed on
-GitHub Pages and the auth/write proxy runs at `textbook-api.webgrid.online`. Remaining
-work is polish and real data rather than new architecture — see the per-phase notes below.
+GitHub Pages and the auth/write proxy runs at `textbook-api.webgrid.online`. One gap
+remains in the original plan — the Phase 1 write path was never wired to the proxy, so
+submitting still means downloading JSON by hand (see Phase 7). Phases 7–12 below cover
+that gap plus the hardening, testing, and content work needed before the group uses this
+in earnest.
 
 ## Guiding principle
 
@@ -52,27 +55,17 @@ stood up.
 Repo coordinates are `ech08ravo/annotated-bibliography`; Pages is live; the Actions run
 green against it.
 
+## Phase 1 — Easy "submit a document + commentary" — ⚠️ partially done
 
-`js/github-api.js` currently points at `GH_OWNER = "ech08ravo"`,
-`GH_REPO = "annotated-bibliography"`. Confirm the real repo coordinates, enable GitHub
-Pages, and verify the existing Actions (`import-ris.yml`, `create-issues.yml`) run against
-the live repo. Foundation for everything else.
+**Built:** the contribution flow accepts an **RIS or BibTeX (.bib)** file, a **PDF**, or a
+**link / DOI** (metadata auto-fetched), plus the document-level commentary
+(summary / method / evaluation / relevance). `js/bibtex-parser.js` and the three input
+modes in `js/contribute.js` are live.
 
-## Phase 1 — Easy "submit a document + commentary" (first build) — ✅ done
-
-The contribution flow accepts any of:
-
-- an **RIS or BibTeX (.bib)** bibliographic file,
-- a **PDF**, or
-- a **link / DOI** (metadata auto-fetched via Crossref/OpenAlex),
-
-plus a **document-level commentary** (the existing summary / method / evaluation /
-relevance annotation). On submit, the proxy creates the paper JSON (and stores the PDF if
-provided) and the existing Action mints its discussion issue.
-
-Work: extend `js/ris-parser.js` to also parse BibTeX; extend `contribute.html` /
-`contribute.js` for the three input modes + PDF upload; wire the write path through the
-proxy (fallback: today's "download JSON → drop in `imports/`" flow).
+**Not built:** the write path. `submitPaper()` in `js/contribute.js` still terminates at a
+**"Download JSON"** button — the documented fallback, not the proxy commit. `api/main.py`
+exposes `ratings` and `comments` routers only; there is no submissions endpoint. So
+contributing a paper remains a manual download-and-commit. Closing this is Phase 7.
 
 ## Phase 2 — Browsing as much as contributing — ✅ done
 
@@ -82,23 +75,17 @@ Pure front-end.
 
 ## Phase 3 — 5-star ratings with averages — ✅ done
 
-Live: the proxy stores one rating per GitHub user in SQLite and the site renders averages
-on cards and the detail page.
-
-
-Logged-in users rate a paper 1–5; the proxy records one rating per user (App-committed
-data file per paper), and the site shows the average on cards and the detail page.
-This is the feature most worth your own server if GitHub-committed ratings feel heavy.
+Live: the proxy stores one rating per GitHub user in SQLite (`ratings` table, primary key
+`(paper_id, gh_user_id)`) and the site renders averages on cards and the detail page.
+Note this diverged from the original plan of App-committed data files in the repo — the
+SQLite table proved simpler, at the cost of the data living outside git (see Phase 8 on
+backups).
 
 ## Phase 4 — Comments on annotations — ✅ done
 
 Implemented as per-section comment threads stored by the proxy (chosen over
 issue-per-annotation), posted from the site and rendered inline on the paper page.
-
-
-Move from per-paper comments to per-annotation: surface the thread inline on the paper page
-and let users post from the site (via the proxy) rather than only clicking through to
-GitHub. Mechanism TBD — structured issue comments vs. issue-per-annotation.
+Sections are constrained to `summary` / `method` / `evaluation` / `relevance` / `general`.
 
 ## Phase 5 — Citation data (scite-style) — ✅ done (OpenAlex; supporting/contrasting breakdown not yet)
 
@@ -107,12 +94,6 @@ paper from OpenAlex. Matching is DOI-first with a year-guarded title-search fall
 papers whose DOI isn't indexed (e.g. arXiv `10.48550/arXiv.*`) or that have no DOI. The
 scite-style supporting/mentioning/contrasting breakdown is not implemented — OpenAlex
 gives counts and by-year totals only.
-
-
-A scheduled Action enriches each paper with citation count and, where available, the
-supporting / mentioning / contrasting breakdown (scite's "Smart Citations" model), pulling
-from OpenAlex or Semantic Scholar (free) or scite's API (token required). Displayed as
-badges on cards and the detail page.
 
 ## Phase 6 — Export curated reference list — ✅ done
 
@@ -128,11 +109,95 @@ Multi-select papers and export the selection to BibTeX, RIS, formatted citations
 - **Citation source:** OpenAlex (free, no key); scite's supporting/contrasting breakdown
   deferred.
 
-## Remaining polish (post-build)
+---
 
+# Phases 7–12 — from "built" to "usable by the group"
+
+Phases 0–6 proved the architecture. What's left is the work that turns a live demo into
+something a reading group can actually be pointed at: the missing write path, the hardening
+that has to precede it, a test suite, and real content.
+
+## Sequencing — hardening before the write path
+
+The tempting order is Phase 7 first, since it's the visible gap. Resist it. **Phase 7 is
+the first feature that lets other people write to the repo through our server.** The
+secret-handling fix, rate limits, moderation, and a test suite should exist *before* that
+door opens, not after. Recommended order: **8 → 9 → 7 → 10 → 11 → 12**.
+
+```
+Phase 8  Harden the API        ─┐
+Phase 9  Tests + CI            ─┴─→  Phase 7  Write path (submissions)
+                                          │
+                                          ├─→ Phase 10  Read-path scaling
+                                          ├─→ Phase 11  Seed real content
+                                          └─→ Phase 12  Polish
+```
+
+## Phase 8 — Harden the API (do first)
+
+Four issues in `api/main.py`, in severity order:
+
+1. **`SESSION_SECRET` falls back to a hardcoded dev value.** `signer` is constructed with
+   `SESSION_SECRET or "dev-only-insecure-secret"`. If the env var is ever unset in
+   production the app boots happily and every bearer token becomes forgeable by anyone who
+   reads this repo. Fail loudly at startup instead of falling back.
+2. **No rate limiting** on `POST /ratings` or `POST /comments`. Any authenticated GitHub
+   account can post 5,000-character comments in a loop.
+3. **No moderation.** `DELETE /comments/{id}` restricts deletion to the comment's author
+   with no maintainer override, so there is no way to remove abuse.
+4. **No backup.** SQLite at `DB_PATH` (`/data/ratings.db`) is the only copy of every rating
+   and comment, and — unlike paper JSON — it lives outside git.
+
+## Phase 9 — Tests and CI
+
+There are currently no tests anywhere in the repo. The cheapest wins first:
+
+- `js/ris-parser.js` and `js/bibtex-parser.js` (391 lines combined) are pure functions over
+  fixture strings — ideal unit-test targets, and the highest-risk code for silent
+  regressions since a parser bug corrupts stored data.
+- `js/export.js` formatters (BibTeX / RIS / APA / MLA / Chicago) are likewise pure.
+- `scripts/enrich-citations.js` matching logic, with `fetch` stubbed (the approach PR #4
+  already used manually).
+- `pytest` over the API's auth and rating/comment endpoints.
+
+Wire these into a GitHub Actions workflow so a parser regression fails a PR instead of
+shipping quietly.
+
+## Phase 7 — Close the write path (the real Phase 1 gap)
+
+Add a submissions router to the proxy (`POST /papers`) that commits the generated paper
+JSON — and the PDF, if supplied — via the GitHub App credential, letting the existing
+`create-issues.yml` Action mint the discussion issue as it does today. Then point
+`submitPaper()` at it. The seam already exists and is commented as such in
+`js/contribute.js`; the "Download JSON" button stays as the offline fallback.
+
+This is also where **submission gating** gets decided: require a GitHub login (consistent
+with ratings and comments, and the simpler option), or accept anonymous submissions into a
+moderation queue.
+
+## Phase 10 — Read-path scaling
+
+`js/github-api.js` reads issues and reactions unauthenticated, which GitHub rate-limits to
+~60 requests/hour **per IP**. Every paper card triggers a fetch, so a shared office or
+campus IP exhausts that within a few page loads — and the failure is invisible, since
+reactions and comment counts simply stop appearing. Move issue reads behind the proxy
+(which can authenticate, raising the ceiling to 5,000/hour) and cache the responses.
+
+## Phase 11 — Seed real content
+
+`papers/` currently holds three sample records (Kuhn, Rawls, Vaswani). Three papers is a
+demo, not a bibliography. Bulk-import the group's actual reading list via `imports/` and
+write genuine annotations for a first handful. This is the phase that determines whether the
+tool gets used, and the only one that isn't code.
+
+Related: citation data stays empty until `enrich-citations.yml` runs — trigger it manually
+after the PR #4 logic landed.
+
+## Phase 12 — Polish
+
+- Mobile and accessibility pass over `css/styles.css`.
+- `papers/pdfs/` is documented in the README but does not exist; PR #4 removed a paper's
+  phantom PDF reference, which suggests the PDF upload path has never been exercised
+  end-to-end. Verify it or drop the feature.
 - **scite-style breakdown** for Phase 5 (supporting / mentioning / contrasting) if a data
   source becomes available.
-- **Submission gating** — confirm whether submitting should require a GitHub login vs.
-  moderated anonymous submissions.
-- **Seed citation data:** the sample papers only populate once the enrich Action runs (or
-  is triggered manually); the arXiv-DOI paper relies on the title-search fallback.

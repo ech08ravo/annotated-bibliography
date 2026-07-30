@@ -1,0 +1,10 @@
+# Optional per-paper PDFs live here as <paper-id>.pdf.
+#
+# A paper references its PDF with a path relative to papers/ — that is,
+# "pdf": "pdfs/<paper-id>.pdf" — because js/paper.js resolves `papers/${paper.pdf}`.
+# CI enforces both halves: the prefix, and that the file actually exists.
+#
+# Signed-in submissions upload the PDF automatically (POST /papers commits it
+# before the JSON that references it, so a paper can never point at a missing
+# file). This directory is tracked so the documented location exists even when
+# no PDFs have been added yet.

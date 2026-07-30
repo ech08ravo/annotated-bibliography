@@ -381,3 +381,106 @@ button.tag.active {
   font: inherit;
   resize: vertical;
 }
+
+/* --- accessibility + responsive (Phase 12) -------------------------------- */
+
+/*
+ * Focus visibility. Nothing in this stylesheet previously styled :focus, so a
+ * keyboard user could tab through the search box, tag filters, star rating and
+ * export controls with no idea where they were. :focus-visible keeps mouse
+ * clicks clean while making keyboard focus obvious.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* The star buttons are gold-on-white, where a blue ring reads poorly. */
+.star-btn:focus-visible {
+  outline: 3px solid var(--fg);
+  outline-offset: 1px;
+}
+
+/* Skip link: visually hidden until focused, so keyboard users can jump past
+ * the header straight to the content. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  padding: 0.6rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+}
+
+/* Long unbroken strings — DOIs, URLs in annotations — must not force the page
+ * to scroll sideways on a phone. */
+.paper-card,
+.annotation,
+.comment-list {
+  overflow-wrap: break-word;
+}
+
+@media (max-width: 640px) {
+  .site-header {
+    padding: 1.25rem 1rem 0.75rem;
+  }
+
+  main {
+    padding: 1rem;
+  }
+
+  /* Stack the toolbar so the search field gets a usable width instead of
+   * three controls fighting over one row. */
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbar input {
+    min-width: 0;
+  }
+  .toolbar .btn-link {
+    text-align: center;
+  }
+
+  /* The export bar has six controls; let them wrap rather than overflow. */
+  .exportbar {
+    flex-wrap: wrap;
+  }
+
+  .paper-card {
+    padding: 0.85rem 1rem;
+  }
+
+  /* Roomier hit areas for touch. Tag filters in particular were ~22px tall,
+   * well under the ~44px that is comfortable on a phone. */
+  button.tag {
+    padding: 0.35rem 0.7rem;
+  }
+  .star-btn {
+    font-size: 1.75rem;
+    padding: 0.15rem 0.2rem;
+  }
+  .btn,
+  .btn-link {
+    padding: 0.55rem 0.9rem;
+  }
+}
+
+/* Respect a stated preference for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

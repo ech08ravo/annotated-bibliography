@@ -18,7 +18,11 @@ import os
 import time
 import sqlite3
 import secrets
+import asyncio
+import logging
+from collections import defaultdict, deque
 from contextlib import closing
+from datetime import datetime, timezone
 
 import httpx
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
@@ -26,6 +30,8 @@ from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, JSONResponse
 from pydantic import BaseModel, conint, constr
+
+log = logging.getLogger("textbook-api")
 
 # --- config (all from env; nothing secret hardcoded) -------------------------
 
@@ -45,7 +51,47 @@ ALLOWED_ORIGINS = [
 DB_PATH = os.environ.get("DB_PATH", "/data/ratings.db")
 TOKEN_MAX_AGE = int(os.environ.get("TOKEN_MAX_AGE", str(60 * 60 * 24 * 30)))  # 30 days
 
-signer = URLSafeTimedSerializer(SESSION_SECRET or "dev-only-insecure-secret", salt="textbook-auth")
+# GitHub logins allowed to delete anyone's comment. Comma-separated, e.g.
+# MODERATORS=ech08ravo,someone-else
+MODERATORS = {
+    m.strip().lower()
+    for m in os.environ.get("MODERATORS", "").split(",")
+    if m.strip()
+}
+
+# Per-user write limits (requests per hour, per endpoint group).
+RATE_LIMIT_COMMENTS = int(os.environ.get("RATE_LIMIT_COMMENTS", "20"))
+RATE_LIMIT_RATINGS = int(os.environ.get("RATE_LIMIT_RATINGS", "60"))
+
+# Nightly SQLite snapshots kept alongside the live db.
+BACKUP_DIR = os.environ.get("BACKUP_DIR", "/data/backups")
+BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "7"))
+BACKUP_INTERVAL_SECONDS = int(os.environ.get("BACKUP_INTERVAL_SECONDS", str(60 * 60 * 24)))
+
+# Escape hatch for local development ONLY — never set this in production.
+ALLOW_INSECURE_SECRET = os.environ.get("ALLOW_INSECURE_SESSION_SECRET") == "1"
+
+# Refuse to start without a real signing secret. Previously this silently fell
+# back to a hardcoded dev value, which would have made every bearer token
+# forgeable by anyone reading this repo if the env var were ever unset.
+if not SESSION_SECRET:
+    if not ALLOW_INSECURE_SECRET:
+        raise RuntimeError(
+            "SESSION_SECRET is not set. Generate one with:\n"
+            '  python3 -c "import secrets; print(secrets.token_urlsafe(48))"\n'
+            "and set it in the environment. For local development only, you may set "
+            "ALLOW_INSECURE_SESSION_SECRET=1 to run with an ephemeral random secret "
+            "(all existing sessions are invalidated on every restart)."
+        )
+    # Random per-process, not a fixed string: tokens can't be forged from source,
+    # and a restart simply logs everyone out.
+    SESSION_SECRET = secrets.token_urlsafe(48)
+    log.warning(
+        "SESSION_SECRET unset; using an ephemeral random secret. "
+        "Sessions will not survive a restart. DO NOT use this in production."
+    )
+
+signer = URLSafeTimedSerializer(SESSION_SECRET, salt="textbook-auth")
 
 # --- tiny SQLite layer -------------------------------------------------------
 
@@ -115,9 +161,86 @@ def current_user(authorization: str = Header(default="")) -> User:
     return User(id=data["id"], login=data["login"])
 
 
+def is_moderator(user: User) -> bool:
+    return user.login.lower() in MODERATORS
+
+
+# --- rate limiting -----------------------------------------------------------
+#
+# In-memory sliding window, keyed by (endpoint group, GitHub user id). This is
+# correct because the service runs as a single uvicorn worker in one container
+# (see docker-compose.yml). If it is ever scaled to multiple workers or
+# replicas, each would keep its own counters and the effective limit would
+# multiply — move the buckets to shared storage at that point.
+
+_rate_buckets: "defaultdict[tuple[str, int], deque[float]]" = defaultdict(deque)
+RATE_WINDOW_SECONDS = 3600
+
+
+def enforce_rate_limit(bucket: str, user_id: int, limit: int) -> None:
+    """Allow `limit` requests per user per hour for this bucket, else 429."""
+    now = time.monotonic()
+    cutoff = now - RATE_WINDOW_SECONDS
+    hits = _rate_buckets[(bucket, user_id)]
+    while hits and hits[0] <= cutoff:
+        hits.popleft()
+    if len(hits) >= limit:
+        retry_after = max(1, int(hits[0] + RATE_WINDOW_SECONDS - now) + 1)
+        raise HTTPException(
+            429,
+            f"Rate limit reached ({limit} per hour). Try again in {retry_after}s.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    hits.append(now)
+
+
+def _prune_rate_buckets() -> None:
+    """Drop windows that have fully aged out, so idle users don't leak memory."""
+    cutoff = time.monotonic() - RATE_WINDOW_SECONDS
+    for key in [k for k, v in _rate_buckets.items() if not v or v[-1] <= cutoff]:
+        del _rate_buckets[key]
+
+
+# --- backups -----------------------------------------------------------------
+#
+# The SQLite file is the only copy of every rating and comment, and unlike the
+# paper JSON it does not live in git. Snapshot it on a timer using SQLite's own
+# backup API, which produces a consistent copy even with concurrent writers
+# (a plain file copy does not).
+
+
+def _backup_once() -> str:
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+    # Microsecond precision, not seconds: two snapshots taken in the same second
+    # would otherwise resolve to the same filename and silently overwrite each
+    # other. Still sorts lexicographically, which the retention sweep relies on.
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    dest = os.path.join(BACKUP_DIR, f"ratings-{stamp}.db")
+    with closing(db()) as src, closing(sqlite3.connect(dest)) as dst:
+        src.backup(dst)
+    snapshots = sorted(
+        f for f in os.listdir(BACKUP_DIR)
+        if f.startswith("ratings-") and f.endswith(".db")
+    )
+    for stale in snapshots[:-BACKUP_KEEP] if BACKUP_KEEP > 0 else []:
+        os.remove(os.path.join(BACKUP_DIR, stale))
+    return dest
+
+
+async def _backup_loop() -> None:
+    while True:
+        try:
+            dest = await asyncio.to_thread(_backup_once)
+            log.info("sqlite backup written: %s", dest)
+        except Exception as exc:  # never let a backup failure kill the service
+            log.error("sqlite backup failed: %s", exc)
+        _prune_rate_buckets()
+        await asyncio.sleep(BACKUP_INTERVAL_SECONDS)
+
+
 # --- app ---------------------------------------------------------------------
 
-app = FastAPI(title="Textbook API", version="0.2.0")
+app = FastAPI(title="Textbook API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -132,8 +255,10 @@ ALLOWED_SECTIONS = {"summary", "method", "evaluation", "relevance", "general"}
 
 
 @app.on_event("startup")
-def _startup():
+async def _startup():
     init_db()
+    if BACKUP_INTERVAL_SECONDS > 0:
+        asyncio.create_task(_backup_loop())
 
 
 @app.get("/health")
@@ -189,7 +314,7 @@ def auth_callback(code: str = "", state: str = ""):
 
 @app.get("/auth/me")
 def auth_me(user: User = Depends(current_user)):
-    return {"id": user.id, "login": user.login}
+    return {"id": user.id, "login": user.login, "is_moderator": is_moderator(user)}
 
 
 # --- ratings -----------------------------------------------------------------
@@ -214,6 +339,7 @@ def _summary(conn, paper_id: str):
 
 @app.post("/ratings")
 def post_rating(body: RatingIn, user: User = Depends(current_user)):
+    enforce_rate_limit("ratings", user.id, RATE_LIMIT_RATINGS)
     with closing(db()) as conn:
         conn.execute(
             """
@@ -299,6 +425,7 @@ def get_comments(paper_id: str):
 def post_comment(body: CommentIn, user: User = Depends(current_user)):
     if body.section not in ALLOWED_SECTIONS:
         raise HTTPException(400, f"Invalid section. Allowed: {sorted(ALLOWED_SECTIONS)}")
+    enforce_rate_limit("comments", user.id, RATE_LIMIT_COMMENTS)
     now = int(time.time())
     with closing(db()) as conn:
         cur = conn.execute(
@@ -315,13 +442,21 @@ def post_comment(body: CommentIn, user: User = Depends(current_user)):
 
 @app.delete("/comments/{comment_id}")
 def delete_comment(comment_id: int, user: User = Depends(current_user)):
-    """A user may delete only their own comment."""
+    """Authors may delete their own comment; moderators may delete any."""
+    moderator = is_moderator(user)
     with closing(db()) as conn:
-        row = conn.execute("SELECT gh_user_id FROM comments WHERE id = ?", (comment_id,)).fetchone()
+        row = conn.execute(
+            "SELECT gh_user_id, gh_login FROM comments WHERE id = ?", (comment_id,)
+        ).fetchone()
         if not row:
             raise HTTPException(404, "Comment not found")
-        if row["gh_user_id"] != user.id:
+        if row["gh_user_id"] != user.id and not moderator:
             raise HTTPException(403, "You can only delete your own comment")
         conn.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
         conn.commit()
-    return {"deleted": comment_id}
+    if moderator and row["gh_user_id"] != user.id:
+        log.info(
+            "moderator %s deleted comment %s by %s",
+            user.login, comment_id, row["gh_login"],
+        )
+    return {"deleted": comment_id, "by_moderator": moderator and row["gh_user_id"] != user.id}

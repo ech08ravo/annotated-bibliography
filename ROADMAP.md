@@ -228,11 +228,70 @@ tool gets used, and the only one that isn't code.
 Related: citation data stays empty until `enrich-citations.yml` runs — trigger it manually
 after the PR #4 logic landed.
 
-## Phase 12 — Polish
+## Phase 12 — Polish — ✅ mostly done
 
-- Mobile and accessibility pass over `css/styles.css`.
-- `papers/pdfs/` is documented in the README but does not exist; PR #4 removed a paper's
-  phantom PDF reference, which suggests the PDF upload path has never been exercised
-  end-to-end. Verify it or drop the feature.
+**Accessibility.** `css/styles.css` had **no** `:focus` styling at all, so a keyboard user
+could tab through the search box, tag filters, star rating and export controls with no
+visible indication of where they were. Added `:focus-visible` outlines (with a dark ring on
+the gold star buttons, where blue reads poorly), a "Skip to content" link on all three
+pages, and `prefers-reduced-motion` support. The star widget itself was already sound —
+real `<button>`s with `aria-label` inside a labelled `role="group"`.
+
+Palette contrast was checked rather than assumed: `--muted` is ≈5.1:1 and `--accent`
+≈6.4:1 against the background, both already passing WCAG AA. No colour changes needed.
+
+**Mobile.** There were **no** media queries. Added a ≤640px breakpoint: the toolbar stacks
+instead of three controls fighting over one row, the export bar wraps, header and card
+padding tighten, and touch targets grow (tag filters were ~22px tall, well under the ~44px
+that's comfortable on a phone). Long DOIs and URLs now wrap instead of forcing sideways
+scroll.
+
+**PDF path.** `papers/pdfs/` now exists (tracked via `.gitkeep` documenting the convention).
+The data contract is verified end-to-end by tests: `api/test_submissions.py` asserts the PDF
+is committed to `papers/pdfs/<id>.pdf` *before* the JSON, and that the stored value is
+`pdfs/<id>.pdf`; CI now enforces both the `pdfs/` prefix and the file's existence for every
+paper. **Still unverified:** the actual PDF.js render in a browser, which needs a real PDF
+and a human — see step 7 of the Phase 11 checklist.
+
+## Still open
+
+- **Phase 11 — seed real content.** The only phase that is mostly judgement rather than
+  code, and the one that decides whether the tool gets used. See
+  `CONTRIBUTING.md` for the import routes and the checklist below.
 - **scite-style breakdown** for Phase 5 (supporting / mentioning / contrasting) if a data
-  source becomes available.
+  source becomes available. OpenAlex gives counts and by-year totals only.
+- **Browser verification of the PDF viewer** (Phase 12), which needs a real PDF.
+
+## Phase 11 checklist — seeding content as an end-to-end test
+
+Worth treating the first real import as the system's acceptance test, since it exercises
+every phase at once with data that matters. In rough order:
+
+1. **Export the real reading list** from Zotero/EndNote as `.ris`, or gather DOIs. Start
+   with 5–10 papers, not the whole library — mistakes are cheaper to fix at that size.
+2. **Import one paper first, by hand**, through the contribute page while signed in.
+   Confirm it lands in `papers/`, the id looks like `author-year-word`, and a discussion
+   issue appears within a minute or so.
+3. **Check the id scheme against a hard case** — two papers by the same author in the same
+   year, or a non-ASCII author name. Ids are derived, so collisions surface as a `409`.
+4. **Bulk-import the rest** by dropping the `.ris` into `imports/`, then confirm
+   `papers/index.json` picked up every paper and CI stayed green.
+5. **Trigger `enrich-citations.yml` manually** and check which papers got counts. Anything
+   with an arXiv DOI relies on the title-search fallback; `matched_by` records which route
+   each one took.
+6. **Write one genuine annotation** end to end — summary, method, evaluation, relevance —
+   and see how it reads on the paper page. This calibrates how much commentary the format
+   actually wants before anyone else writes theirs.
+7. **Attach a real PDF** to one paper and confirm it renders in the viewer, and that
+   highlights land where expected. This is the one path still unverified in a browser.
+8. **Rate and comment as a second person** (or a second GitHub account) to confirm
+   one-rating-per-user holds, averages update, and per-section comments thread correctly.
+9. **Export a selection** to BibTeX and re-import it into the reference manager it came
+   from. A clean round trip means the export is genuinely usable, not just plausible.
+10. **Open the site on a phone**, and once through with the keyboard only — tab from the
+    search box to a tag filter to a star rating — to confirm the Phase 12 work holds up on
+    real content rather than three sample papers.
+
+Two decisions worth making before step 4: whether `SUBMIT_BRANCH` should stay `main` or
+point at a review branch, and whether `SUBMIT_ALLOWLIST` should name the group explicitly
+rather than allowing any signed-in GitHub user.

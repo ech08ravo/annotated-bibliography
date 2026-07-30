@@ -87,9 +87,18 @@ jobs:
                 console.error(`${f}: id "${p.id}" does not match its filename`);
                 bad++;
               }
-              if (p.pdf && !fs.existsSync("papers/" + p.pdf)) {
-                console.error(`${f}: references a missing PDF at papers/${p.pdf}`);
-                bad++;
+              if (p.pdf) {
+                // The value is relative to papers/ because js/paper.js resolves
+                // `papers/${paper.pdf}`. Storing a bare "<id>.pdf" produced a
+                // broken link for every PDF submission until #8.
+                if (!String(p.pdf).startsWith("pdfs/")) {
+                  console.error(`${f}: pdf "${p.pdf}" must be relative to papers/, i.e. "pdfs/${p.id}.pdf"`);
+                  bad++;
+                }
+                if (!fs.existsSync("papers/" + p.pdf)) {
+                  console.error(`${f}: references a missing PDF at papers/${p.pdf}`);
+                  bad++;
+                }
               }
             }
             console.log(`Checked ${files.length} paper file(s).`);

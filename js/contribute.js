@@ -2,9 +2,11 @@
 // (RIS or BibTeX), a link/DOI (metadata fetched from Crossref), or a PDF
 // (metadata read with PDF.js) — all converge on one annotate-and-submit UI.
 //
-// Submission today uses the no-backend paths (open a pre-filled PR, or
-// download/copy the JSON). submitPaper() is the single seam where a future
-// auth/write proxy can post on the user's behalf — see SUBMIT below.
+// Submission routes through submitPaper(): signed in, it POSTs to the auth/write
+// proxy, which commits the paper (and uploads its PDF) with its own credential.
+// Signed out — or if the proxy is unreachable or unconfigured — it falls back to
+// the no-backend paths (pre-filled PR, download, copy) so the page is never a
+// dead end. All routing stays in that one function; see SUBMIT below.
 
 (function () {
   const dropzone  = document.getElementById("dropzone");
@@ -17,6 +19,13 @@
   const ghUserEl  = document.getElementById("gh-user");
 
   let nextIdx = 0;
+  // paper.id -> File, for PDFs we can upload on a signed-in submission.
+  const pdfFiles = new Map();
+
+  // The auth client (js/ratings.js) owns the GitHub token; it may be absent if
+  // that script failed to load, so every use is guarded.
+  function auth() { return typeof Ratings !== "undefined" ? Ratings : null; }
+  function signedIn() { const a = auth(); return !!(a && a.getToken()); }
 
   // Restore previously-entered username
   try {
@@ -195,10 +204,19 @@
       title: meta.title || fromName || "(untitled)",
       authors, year: null, venue: "", doi: "", url: "", abstract: "", tags: [],
     });
-    paper.pdf = `${paper.id}.pdf`;
+    // Stored relative to papers/ — js/paper.js resolves `papers/${paper.pdf}`,
+    // so the "pdfs/" prefix belongs in the value.
+    paper.pdf = `pdfs/${paper.id}.pdf`;
     paper._pdfPending = file.name;
+    // Hold the bytes so a signed-in submission can upload the file itself
+    // rather than leaving the JSON pointing at a PDF nobody added.
+    pdfFiles.set(paper.id, file);
     appendPapers([paper]);
-    setStatus(`Read "${file.name}". Add commentary, then submit — and attach the PDF as papers/pdfs/${paper.pdf} in the PR.`);
+    setStatus(
+      signedIn()
+        ? `Read "${file.name}". Add commentary, then submit — the PDF will be uploaded with it.`
+        : `Read "${file.name}". Add commentary, then submit — and attach the PDF as papers/${paper.pdf} in the PR.`
+    );
     pdfInput.value = "";
   }
 
@@ -220,13 +238,19 @@
     const authorList = (paper.authors || []).join(", ");
     const meta = [authorList, paper.year, paper.venue].filter(Boolean).join(" · ");
 
-    const pdfNote = paper._pdfPending
-      ? `<div class="help-box" style="margin:0 0 0.75rem;">
-           <strong>PDF:</strong> binary files can't ride along in the pre-filled link.
-           After opening the PR, add <code>${escapeHTML(paper._pdfPending)}</code> to the repo
-           at <code>papers/pdfs/${escapeHTML(paper.pdf)}</code>.
-         </div>`
-      : "";
+    const pdfNote = !paper._pdfPending
+      ? ""
+      : signedIn()
+        ? `<div class="help-box" style="margin:0 0 0.75rem;">
+             <strong>PDF:</strong> <code>${escapeHTML(paper._pdfPending)}</code> will be uploaded
+             to <code>papers/${escapeHTML(paper.pdf)}</code> with this submission.
+           </div>`
+        : `<div class="help-box" style="margin:0 0 0.75rem;">
+             <strong>PDF:</strong> binary files can't ride along in the pre-filled link.
+             After opening the PR, add <code>${escapeHTML(paper._pdfPending)}</code> to the repo
+             at <code>papers/${escapeHTML(paper.pdf)}</code> — or sign in to have it uploaded
+             automatically.
+           </div>`;
 
     div.innerHTML = `
       <h3>${escapeHTML(paper.title || "(untitled)")}</h3>
@@ -273,7 +297,7 @@
       </label>
 
       <div class="actions-row">
-        <button class="btn primary" data-act="pr">Open pull request on GitHub</button>
+        <button class="btn primary" data-act="pr">${signedIn() ? "Submit paper" : "Open pull request on GitHub"}</button>
         <button class="btn" data-act="download">Download JSON</button>
         <button class="btn" data-act="copy">Copy JSON</button>
         <button class="btn" data-act="dismiss">Dismiss</button>
@@ -318,11 +342,79 @@
   }
 
   // SUBMIT — the single seam for the write path.
-  // Today: open a pre-filled "new file" PR on GitHub (no backend needed).
-  // Later: if an auth/write proxy is configured, POST there to commit on the
-  // user's behalf. Keep all submission routing in this one function.
-  function submitPaper(paper) {
+  //
+  // Signed in: POST to the proxy, which commits the paper (and its PDF) with
+  // its own credential. Otherwise, or if that fails for any reason, fall back
+  // to the no-backend path so the page never becomes a dead end.
+  async function submitPaper(paper) {
+    if (!signedIn()) {
+      openPR(paper);
+      return;
+    }
+
+    setStatus(`Submitting "${paper.title}"…`);
+    try {
+      const body = { paper };
+      const file = pdfFiles.get(paper.id);
+      if (file) body.pdf_base64 = await fileToBase64(file);
+
+      const res = await fetch(auth().API + "/papers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + auth().getToken(),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        const out = await res.json();
+        pdfFiles.delete(paper.id);
+        const where = out.commit_url || out.file_url;
+        setStatus(
+          `Committed "${paper.title}" to ${out.path}${out.pdf_path ? " (with PDF)" : ""}.`
+          + ` Its discussion issue is created automatically within a minute.`
+          + (where ? ` View the commit: ${where}` : "")
+        );
+        return;
+      }
+
+      // 409 means the id is taken — retrying via the PR flow would just create
+      // the same collision, so stop and let the user pick another id.
+      const detail = await errorDetail(res);
+      if (res.status === 409) {
+        setStatus(`Not submitted: ${detail} Change the id field and try again.`);
+        return;
+      }
+      setStatus(`Couldn't submit (${res.status}: ${detail}) — falling back to the GitHub flow.`);
+    } catch (e) {
+      setStatus(`Couldn't reach the submission API (${e.message}) — falling back to the GitHub flow.`);
+    }
+
     openPR(paper);
+  }
+
+  async function errorDetail(res) {
+    try {
+      const j = await res.json();
+      return typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail || j);
+    } catch (_) {
+      return res.statusText || "unknown error";
+    }
+  }
+
+  // Base64 without the "data:...;base64," prefix the API doesn't expect.
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => {
+        const s = String(r.result);
+        const comma = s.indexOf(",");
+        resolve(comma === -1 ? s : s.slice(comma + 1));
+      };
+      r.onerror = () => reject(new Error("couldn't read the PDF"));
+      r.readAsDataURL(file);
+    });
   }
 
   function openPR(paper) {

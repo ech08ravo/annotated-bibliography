@@ -62,6 +62,7 @@
 </head>
 <body>
   <header class="site-header">
+    <div id="account" class="account"></div>
     <h1><a href="index.html" style="color:inherit;text-decoration:none;">← Shared Annotated Bibliography</a></h1>
     <p class="tagline">Add a paper and your commentary — by file, link, or PDF</p>
   </header>
@@ -99,13 +100,16 @@
 
       <section class="method">
         <h2>3 · From a PDF</h2>
-        <p class="small">We'll read the title/author from the file's metadata. Remember to add the
-          PDF itself to <code>papers/pdfs/</code> when you open the PR.</p>
+        <p class="small">We'll read the title/author from the file's metadata. Signed in, the PDF
+          is uploaded with your submission; otherwise add it to <code>papers/pdfs/</code>
+          yourself when you open the PR.</p>
         <p><input type="file" id="pdf" accept=".pdf,application/pdf"></p>
       </section>
     </div>
 
-    <p><label>Your GitHub username (so we can credit your annotation): <input id="gh-user" type="text" placeholder="e.g. octocat" style="padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:4px;font:inherit;"></label></p>
+    <p><label>Your GitHub username (so we can credit your annotation): <input id="gh-user" type="text" placeholder="e.g. octocat" style="padding:0.4rem 0.6rem;border:1px solid var(--border);border-radius:4px;font:inherit;"></label>
+      <span class="small">Only needed when you're not signed in — signing in credits the annotation
+      to your GitHub account automatically.</span></p>
 
     <div id="status" class="status" role="status"></div>
     <div id="records"></div>
@@ -116,6 +120,8 @@
   <script src="js/ris-parser.js"></script>
   <script src="js/bibtex-parser.js"></script>
   <script src="js/github-api.js"></script>
+  <!-- Provides GitHub sign-in and the bearer token used to submit directly. -->
+  <script src="js/ratings.js"></script>
   <script src="js/contribute.js"></script>
 </body>
 </html>

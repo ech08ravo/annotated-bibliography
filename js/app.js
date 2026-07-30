@@ -62,12 +62,13 @@
   }
   const byId = new Map(papers.map(p => [p.id, p]));
 
-  // GitHub stats: concurrent, best-effort.
-  await Promise.all(papers.map(async (p) => {
-    p._stats = { upvotes: 0, comments: 0 };
-    if (!p.issue) return;
-    try { p._stats = await GH.getIssueStats(p.issue); } catch (_) {}
-  }));
+  // GitHub stats: one batch call for every paper, best-effort. Previously this
+  // was one request per paper, which exhausted GitHub's unauthenticated 60/hour
+  // per-IP limit within a couple of page loads and then silently showed zeros.
+  const statsMap = await GH.getIssueStatsMany(papers.map(p => p.issue));
+  papers.forEach(p => {
+    p._stats = (p.issue && statsMap[String(p.issue)]) || { upvotes: 0, comments: 0 };
+  });
 
   // Ratings: one batch call for all papers, best-effort.
   const ratingMap = (typeof Ratings !== "undefined") ? await Ratings.all() : {};

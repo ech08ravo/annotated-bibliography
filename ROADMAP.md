@@ -200,13 +200,23 @@ Two related bugs fixed while wiring this up:
   is committed *before* the JSON that references it. This is the phantom-PDF class of bug
   #4 had to fix by hand, now structurally prevented and covered by CI.
 
-## Phase 10 — Read-path scaling
+## Phase 10 — Read-path scaling — ✅ done
 
-`js/github-api.js` reads issues and reactions unauthenticated, which GitHub rate-limits to
-~60 requests/hour **per IP**. Every paper card triggers a fetch, so a shared office or
-campus IP exhausts that within a few page loads — and the failure is invisible, since
-reactions and comment counts simply stop appearing. Move issue reads behind the proxy
-(which can authenticate, raising the ceiling to 5,000/hour) and cache the responses.
+`GET /issues` on the proxy fetches the repo's whole issue list in **one** upstream sweep and
+caches it, so upstream cost no longer scales with the number of papers *or* the number of
+visitors. `GET /issues/{n}/comments` is cached per issue. `js/app.js` now makes a single
+batch call for the listing page instead of one GitHub request per paper, and
+`js/github-api.js` falls back to reading GitHub directly if the proxy is unreachable.
+
+`GITHUB_READ_TOKEN` is optional: it lifts the upstream ceiling from 60 to 5,000/hour, but
+even unauthenticated the cache collapses every visitor into one call per TTL. 34 tests in
+`api/test_issue_cache.py` assert the upstream **call count**, not just the payload, since
+that's the property the feature exists to provide.
+
+The problem it solved: `js/github-api.js` read issues and reactions unauthenticated, which
+GitHub rate-limits to ~60 requests/hour **per IP**, and every paper card triggered its own
+fetch. A shared office or campus IP exhausted that within a few page loads, and the failure
+was invisible — the front-end swallowed the errors, so counts silently showed zero.
 
 ## Phase 11 — Seed real content
 

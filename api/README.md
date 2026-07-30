@@ -26,6 +26,8 @@ write path) are not implemented yet — see Phase 7 in `../ROADMAP.md`.
 | POST   | `/comments`          | bearer | post `{paper_id, section, body}`         |
 | DELETE | `/comments/{id}`     | bearer | delete your own comment (moderators: any)|
 | POST   | `/papers`            | bearer | submit a paper: commits `papers/<id>.json` (+ optional PDF) |
+| GET    | `/issues`            | no     | upvote/comment counts for every issue, cached |
+| GET    | `/issues/{n}/comments`| no    | GitHub discussion comments for one issue, cached |
 
 Writes are rate-limited per GitHub user per hour — `POST /comments` and
 `POST /ratings` have separate budgets and return `429` with a `Retry-After`
@@ -59,6 +61,29 @@ curl -s http://172.17.0.1:8090/health
 
 `/health` and `GET /ratings` work without OAuth configured; login and posting
 ratings need the GitHub credentials filled in.
+
+## Issue reads (`GET /issues`)
+
+The site used to read upvote and comment counts straight from GitHub in the
+browser: **one request per paper, per visitor**, against an unauthenticated
+60/hour **per-IP** limit. A shared office or campus IP ran dry after a couple of
+page loads, and because the front-end swallowed the errors the counts silently
+rendered as zero rather than failing visibly.
+
+`GET /issues` fetches the repo's whole issue list in **one** upstream sweep and
+caches it for `ISSUE_CACHE_TTL` seconds, so upstream cost is independent of both
+the paper count and the visitor count. Pull requests are filtered out;
+pagination is followed up to `ISSUE_MAX_PAGES`. `GET /issues/{n}/comments` is
+cached per issue and returns only the fields the page renders rather than
+mirroring GitHub's full user object.
+
+`GITHUB_READ_TOKEN` is optional — it raises the upstream ceiling from 60 to
+5,000/hour, and a read-only fine-grained token suffices. Without any token the
+cache still helps, since it collapses every visitor into one upstream call per
+TTL. `X-Cache: hit|miss` on the response tells you which path served it.
+
+The front-end falls back to reading GitHub directly if this proxy is
+unreachable, so the site degrades rather than breaking.
 
 ## Submissions (`POST /papers`)
 
@@ -110,14 +135,18 @@ cd api
 python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 ./venv/bin/python test_hardening.py
 ./venv/bin/python test_submissions.py
+./venv/bin/python test_issue_cache.py
 ```
 
 `test_hardening.py` covers secret handling, per-user rate limiting, moderator
 deletion, and backup retention. `test_submissions.py` covers `POST /papers`:
 path-traversal rejection, allowlist gating, PDF validation and ordering, and
 what actually lands in the commit — with GitHub stubbed, so it never makes a
-network call or writes to a real repo. No test framework or extra dependencies;
-both exit non-zero on failure.
+network call or writes to a real repo. `test_issue_cache.py` covers the issue
+read-through cache, asserting the *number of upstream calls* rather than just the
+payload — the point of the feature is that the count stops scaling with papers
+and visitors. No test framework or extra dependencies; all three exit non-zero on
+failure.
 
 ## Rate limiting caveat
 

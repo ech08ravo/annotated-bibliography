@@ -56,6 +56,10 @@ jobs:
         working-directory: api
         run: python test_submissions.py
 
+      - name: Run issue cache tests
+        working-directory: api
+        run: python test_issue_cache.py
+
   data-integrity:
     name: Paper data integrity
     runs-on: ubuntu-latest

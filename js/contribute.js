@@ -1,5 +1,5 @@
 // Browser-side contribute page. Three ways in — a bibliographic file
-// (RIS or BibTeX), a link/DOI (metadata fetched from Crossref), or a PDF
+// (RIS or BibTeX), a link/DOI (metadata from Crossref or DataCite), or a PDF
 // (metadata read with PDF.js) — all converge on one annotate-and-submit UI.
 //
 // Submission routes through submitPaper(): signed in, it POSTs to the auth/write
@@ -90,7 +90,7 @@
     return [];
   }
 
-  // ---- Method 2: link or DOI (Crossref lookup) ---------------------------
+  // ---- Method 2: link or DOI (Crossref, then DataCite) -------------------
 
   idBtn.addEventListener("click", fetchByIdentifier);
   idInput.addEventListener("keydown", e => {
@@ -100,26 +100,28 @@
   async function fetchByIdentifier() {
     const raw = idInput.value.trim();
     if (!raw) return;
-    const doi = extractDoi(raw);
+    const doi = DOILookup.extractDoi(raw);
 
     if (doi) {
-      setStatus(`Looking up ${doi} on Crossref…`);
+      setStatus(`Looking up ${doi}…`);
       try {
-        const res = await fetch(
-          `https://api.crossref.org/works/${encodeURIComponent(doi)}`,
-          { headers: { "Accept": "application/json" } }
-        );
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const paper = toPaper(crossrefToRecord(data.message));
-        appendPapers([paper]);
-        setStatus(`Found "${paper.title}". Add your commentary, then submit.`);
+        // Crossref first, then DataCite — the latter covers Zenodo, Figshare,
+        // Dryad, OSF, datasets and theses, which Crossref 404s on.
+        const hit = await DOILookup.lookup(doi);
+        if (hit) {
+          const paper = toPaper(hit.record);
+          appendPapers([paper]);
+          setStatus(`Found "${paper.title}" via ${hit.source}. Add your commentary, then submit.`);
+        } else {
+          appendPapers([toPaper({ ...blankRecord(), doi })]);
+          setStatus(`${doi} isn't in Crossref or DataCite. Added a blank entry — fill it in below.`);
+        }
       } catch (e) {
-        setStatus(`Couldn't reach Crossref for ${doi} (${e.message}). Added a blank entry — fill it in below.`);
-        appendPapers([toPaper({ title: "", authors: [], year: null, venue: "", doi, url: "", abstract: "", tags: [] })]);
+        setStatus(`Couldn't reach Crossref or DataCite for ${doi} (${e.message}). Added a blank entry — fill it in below.`);
+        appendPapers([toPaper({ ...blankRecord(), doi })]);
       }
     } else if (/^https?:\/\//i.test(raw)) {
-      appendPapers([toPaper({ title: "", authors: [], year: null, venue: "", doi: "", url: raw, abstract: "", tags: [] })]);
+      appendPapers([toPaper({ ...blankRecord(), url: raw })]);
       setStatus("Added a link. Fill in the title and details, then submit.");
     } else {
       setStatus("Enter a DOI (e.g. 10.1000/xyz) or a full URL (https://…).");
@@ -128,32 +130,13 @@
     idInput.value = "";
   }
 
-  function extractDoi(s) {
-    const m = String(s).match(/10\.\d{4,9}\/[^\s"'<>]+/i);
-    return m ? m[0].replace(/[.,;)]+$/, "") : "";
-  }
-
-  function crossrefToRecord(m) {
-    m = m || {};
-    const authors = (m.author || [])
-      .map(a => [a.given, a.family].filter(Boolean).join(" ").trim() || a.name || "")
-      .filter(Boolean);
-    const dp = (m.issued && m.issued["date-parts"] && m.issued["date-parts"][0]) || [];
-    const abstract = m.abstract
-      ? String(m.abstract).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
-      : "";
+  function blankRecord() {
     return {
-      title: (m.title && m.title[0]) || "(untitled)",
-      authors,
-      year: dp[0] || null,
-      venue: (m["container-title"] && m["container-title"][0]) || m.publisher || "",
-      publisher: m.publisher || "",
-      doi: m.DOI || "",
-      url: m.URL || "",
-      abstract,
-      tags: (m.subject || []).slice(0, 8),
+      title: "", authors: [], year: null, venue: "", publisher: "",
+      doi: "", url: "", abstract: "", tags: [],
     };
   }
+
 
   // ---- Method 3: PDF (metadata via PDF.js) -------------------------------
 

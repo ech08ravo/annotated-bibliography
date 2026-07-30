@@ -46,6 +46,7 @@ These rely only on the default `GITHUB_TOKEN`, which the workflow files request 
 │   ├── export.js                    # BibTeX / RIS / APA / MLA / Chicago / Markdown
 │   ├── ris-parser.js                # RIS parser (used in browser and Node)
 │   ├── bibtex-parser.js             # BibTeX parser (used in browser and Node)
+│   ├── doi-lookup.js                # DOI lookup: Crossref, then DataCite
 │   └── contribute.js                # contribute page logic
 ├── api/                             # Python write proxy: sign-in, ratings, comments
 ├── scripts/

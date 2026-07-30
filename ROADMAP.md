@@ -253,6 +253,25 @@ is committed to `papers/pdfs/<id>.pdf` *before* the JSON, and that the stored va
 paper. **Still unverified:** the actual PDF.js render in a browser, which needs a real PDF
 and a human — see step 7 of the Phase 11 checklist.
 
+## Metadata lookup — Crossref and DataCite
+
+A DOI can be registered with any of several agencies, each with its own metadata API.
+The contribute page originally asked Crossref only, so a Zenodo DOI 404'd and the
+contributor had to type the record in by hand. `js/doi-lookup.js` now tries Crossref
+first (best for journal articles) and falls back to DataCite, which covers Zenodo,
+Figshare, Dryad, OSF, institutional repositories, datasets and theses.
+
+Both APIs are free, need no key, and send CORS headers permitting calls straight from
+the site, so this stayed a front-end fix with no proxying.
+
+It also handles landing-page URLs with no DOI in them: `zenodo.org/records/<id>` maps to
+`10.5281/zenodo.<id>`, which was the actual failure — the pasted URL contained no DOI at
+all, so the extractor found nothing before either registry was consulted.
+
+Extracting this from `contribute.js` into a browser+Node module also brought the Crossref
+mapping under test for the first time; it had none, because `contribute.js` needs a DOM
+and can't be imported by the Node suite.
+
 ## Still open
 
 - **Phase 11 — seed real content.** The only phase that is mostly judgement rather than

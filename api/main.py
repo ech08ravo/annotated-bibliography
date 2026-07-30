@@ -84,6 +84,16 @@ SUBMIT_ALLOWLIST = {
 }
 MAX_PDF_BYTES = int(os.environ.get("MAX_PDF_BYTES", str(10 * 1024 * 1024)))
 
+# --- issue read-through cache (Phase 10) -------------------------------------
+# Reading issue stats straight from the browser costs one unauthenticated GitHub
+# request per paper per visitor, against a 60/hour per-IP ceiling. Proxying and
+# caching turns that into one upstream sweep per TTL for the whole site.
+# A token is optional but raises the upstream ceiling from 60 to 5,000/hour.
+GITHUB_READ_TOKEN = os.environ.get("GITHUB_READ_TOKEN", "") or GITHUB_WRITE_TOKEN
+ISSUE_CACHE_TTL = int(os.environ.get("ISSUE_CACHE_TTL", "300"))
+# Safety stop for pagination, so a huge repo can't wedge a request.
+ISSUE_MAX_PAGES = int(os.environ.get("ISSUE_MAX_PAGES", "10"))
+
 # Nightly SQLite snapshots kept alongside the live db.
 BACKUP_DIR = os.environ.get("BACKUP_DIR", "/data/backups")
 BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "7"))
@@ -256,6 +266,7 @@ async def _backup_loop() -> None:
         except Exception as exc:  # never let a backup failure kill the service
             log.error("sqlite backup failed: %s", exc)
         _prune_rate_buckets()
+        _prune_issue_cache()
         await asyncio.sleep(BACKUP_INTERVAL_SECONDS)
 
 
@@ -459,6 +470,139 @@ def post_comment(body: CommentIn, user: User = Depends(current_user)):
         conn.commit()
         row = conn.execute("SELECT * FROM comments WHERE id = ?", (cur.lastrowid,)).fetchone()
     return _comment_row(row)
+
+
+# --- issue stats + comments (read-through cache) -----------------------------
+#
+# The site previously read these straight from GitHub in the browser: one request
+# per paper, per visitor, against an unauthenticated 60/hour per-IP limit — so a
+# shared office or campus IP ran dry after a couple of page loads, and because the
+# front-end swallowed the failures, counts silently rendered as zero.
+#
+# Here the whole issue list is fetched in ONE upstream sweep and cached, so the
+# cost is independent of both the number of papers and the number of visitors.
+
+_issue_cache: Dict[str, tuple] = {}
+
+
+def _cache_get(key: str):
+    hit = _issue_cache.get(key)
+    if not hit:
+        return None
+    expires_at, value = hit
+    if expires_at < time.monotonic():
+        _issue_cache.pop(key, None)
+        return None
+    return value
+
+
+def _cache_put(key: str, value, ttl: Optional[int] = None) -> None:
+    _issue_cache[key] = (time.monotonic() + (ttl if ttl is not None else ISSUE_CACHE_TTL), value)
+
+
+def _prune_issue_cache() -> None:
+    """Drop expired entries so keys nobody asks for again don't linger."""
+    now = time.monotonic()
+    for key in [k for k, (expires_at, _) in _issue_cache.items() if expires_at < now]:
+        _issue_cache.pop(key, None)
+
+
+def _gh_read_headers() -> Dict[str, str]:
+    h = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if GITHUB_READ_TOKEN:
+        h["Authorization"] = f"Bearer {GITHUB_READ_TOKEN}"
+    return h
+
+
+async def _fetch_issue_stats() -> Dict[str, Dict[str, int]]:
+    """One paginated sweep of the repo's issues -> {number: {upvotes, comments}}."""
+    stats: Dict[str, Dict[str, int]] = {}
+    async with httpx.AsyncClient(timeout=20) as client:
+        for page in range(1, ISSUE_MAX_PAGES + 1):
+            r = await client.get(
+                f"{GITHUB_API}/repos/{GITHUB_REPO}/issues",
+                params={"state": "all", "per_page": 100, "page": page},
+                headers=_gh_read_headers(),
+            )
+            if r.status_code >= 400:
+                raise HTTPException(502, f"GitHub issue read failed ({r.status_code}).")
+            batch = r.json()
+            if not isinstance(batch, list) or not batch:
+                break
+            for issue in batch:
+                # The issues endpoint also returns pull requests; skip them.
+                if "pull_request" in issue:
+                    continue
+                reactions = issue.get("reactions") or {}
+                stats[str(issue.get("number"))] = {
+                    "upvotes": reactions.get("+1", 0) or 0,
+                    "comments": issue.get("comments", 0) or 0,
+                }
+            if len(batch) < 100:
+                break
+    return stats
+
+
+@app.get("/issues")
+async def issue_stats():
+    """Upvote and comment counts for every issue, keyed by issue number."""
+    if not GITHUB_REPO:
+        raise HTTPException(503, "GITHUB_REPO is not configured.")
+    cached = _cache_get("issues")
+    if cached is not None:
+        return JSONResponse(cached, headers={"X-Cache": "hit"})
+    stats = await _fetch_issue_stats()
+    _cache_put("issues", stats)
+    return JSONResponse(stats, headers={"X-Cache": "miss"})
+
+
+@app.get("/issues/{number}/comments")
+async def issue_comments(number: int):
+    """GitHub discussion comments for one issue, cached."""
+    if not GITHUB_REPO:
+        raise HTTPException(503, "GITHUB_REPO is not configured.")
+    if number < 1:
+        raise HTTPException(400, "Invalid issue number.")
+    key = f"comments:{number}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return JSONResponse(cached, headers={"X-Cache": "hit"})
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        r = await client.get(
+            f"{GITHUB_API}/repos/{GITHUB_REPO}/issues/{number}/comments",
+            params={"per_page": 100},
+            headers=_gh_read_headers(),
+        )
+    if r.status_code == 404:
+        raise HTTPException(404, f"Issue #{number} not found.")
+    if r.status_code >= 400:
+        raise HTTPException(502, f"GitHub comment read failed ({r.status_code}).")
+
+    payload = r.json()
+    if not isinstance(payload, list):
+        payload = []
+    # Pass through only the fields the site renders, so the response stays small
+    # and we aren't mirroring GitHub's whole user object to the browser.
+    out = [
+        {
+            "id": c.get("id"),
+            "body": c.get("body", ""),
+            "created_at": c.get("created_at", ""),
+            "html_url": c.get("html_url", ""),
+            "user": {
+                "login": (c.get("user") or {}).get("login", ""),
+                "avatar_url": (c.get("user") or {}).get("avatar_url", ""),
+                "html_url": (c.get("user") or {}).get("html_url", ""),
+            },
+        }
+        for c in payload
+    ]
+    _cache_put(key, out)
+    return JSONResponse(out, headers={"X-Cache": "miss"})
 
 
 # --- paper submissions -------------------------------------------------------

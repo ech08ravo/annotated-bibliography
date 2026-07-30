@@ -1,0 +1,97 @@
+name: CI
+
+# Runs on every push to main and every pull request. Nothing here needs
+# secrets, network access, or write permissions.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  js-tests:
+    name: JS unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Node's built-in test runner — no package.json, no dependencies.
+      # Files are passed explicitly rather than as a directory, which is
+      # supported consistently across Node versions.
+      - name: Run test suites
+        run: node --test test/*.test.js
+
+      - name: Syntax-check the browser and script bundles
+        run: |
+          for f in js/*.js scripts/*.js; do
+            node --check "$f"
+          done
+
+  api-tests:
+    name: API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r api/requirements.txt
+
+      - name: Run hardening tests
+        working-directory: api
+        run: python test_hardening.py
+
+  data-integrity:
+    name: Paper data integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Every paper file is valid JSON with the required fields
+        run: |
+          node -e '
+            const fs = require("fs");
+            const files = fs.readdirSync("papers").filter(f => f.endsWith(".json") && f !== "index.json");
+            let bad = 0;
+            for (const f of files) {
+              let p;
+              try { p = JSON.parse(fs.readFileSync("papers/" + f, "utf8")); }
+              catch (e) { console.error(`${f}: invalid JSON — ${e.message}`); bad++; continue; }
+              for (const key of ["id", "title", "authors"]) {
+                if (!(key in p)) { console.error(`${f}: missing required field "${key}"`); bad++; }
+              }
+              if (p.id && p.id !== f.replace(/\.json$/, "")) {
+                console.error(`${f}: id "${p.id}" does not match its filename`);
+                bad++;
+              }
+              if (p.pdf && !fs.existsSync("papers/" + p.pdf)) {
+                console.error(`${f}: references a missing PDF at papers/${p.pdf}`);
+                bad++;
+              }
+            }
+            console.log(`Checked ${files.length} paper file(s).`);
+            process.exit(bad ? 1 : 0);
+          '
+
+      # update-index.js is deterministic, so a diff here means index.json
+      # drifted out of sync with what is actually in papers/.
+      - name: papers/index.json is in sync
+        run: |
+          node scripts/update-index.js
+          git diff --exit-code papers/index.json \
+            || { echo "::error::papers/index.json is stale — run 'node scripts/update-index.js' and commit."; exit 1; }

@@ -53,7 +53,9 @@ These rely only on the default `GITHUB_TOKEN`, which the workflow files request 
 │   ├── create-missing-issues.js     # creates GitHub Issues for new papers
 │   ├── enrich-citations.js          # adds OpenAlex citation data to papers/*.json
 │   └── update-index.js              # rebuilds papers/index.json from disk
+├── test/                             # Node unit tests (node --test test/*.test.js)
 ├── .github/workflows/
+│   ├── ci.yml                        # tests + data integrity on every push/PR
 │   ├── import-ris.yml
 │   ├── create-issues.yml
 │   └── enrich-citations.yml
@@ -80,6 +82,20 @@ node scripts/update-index.js
 ```
 
 (The `create-missing-issues.js` script needs `GITHUB_REPOSITORY` and `GITHUB_TOKEN` in the environment — it's meant for the Action, not local runs.)
+
+## Tests
+
+No test framework and no `package.json` — the front-end suites use Node's built-in
+runner, and the API suite is a plain script:
+
+```
+node --test test/*.test.js     # parsers, exporters, citation matching
+cd api && python3 test_hardening.py   # API auth, rate limits, moderation, backups
+```
+
+`.github/workflows/ci.yml` runs both on every push and pull request, and additionally
+syntax-checks the JS, validates each paper JSON file, and fails if `papers/index.json`
+has drifted out of sync with `papers/`.
 
 ## Config
 

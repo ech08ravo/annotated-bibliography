@@ -137,4 +137,16 @@ async function main() {
   }
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+// Only run when invoked directly, so tests can require the helpers below
+// without triggering a live API sweep over papers/.
+if (require.main === module) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}
+
+module.exports = {
+  fetchOpenAlex,
+  fetchByTitle,
+  toCitations,
+  sameData,
+  TITLE_YEAR_TOLERANCE,
+};

@@ -37,6 +37,24 @@
   });
 
   function setStatus(msg) { statusEl.textContent = msg || ""; }
+
+  // Status line with links in it. Built from DOM nodes rather than innerHTML so
+  // a paper title can never inject markup.
+  function setStatusParts(...parts) {
+    statusEl.textContent = "";
+    parts.filter(Boolean).forEach(part => {
+      statusEl.appendChild(typeof part === "string" ? document.createTextNode(part) : part);
+    });
+  }
+
+  function statusLink(href, text) {
+    const a = document.createElement("a");
+    a.href = href;
+    a.textContent = text;
+    a.target = "_blank";
+    a.rel = "noopener";
+    return a;
+  }
   function ghUser() { return ghUserEl.value.trim(); }
 
   // ---- Method 1: bibliographic file (RIS or BibTeX) ----------------------
@@ -354,10 +372,18 @@
         const out = await res.json();
         pdfFiles.delete(paper.id);
         const where = out.commit_url || out.file_url;
-        setStatus(
-          `Committed "${paper.title}" to ${out.path}${out.pdf_path ? " (with PDF)" : ""}.`
-          + ` Its discussion issue is created automatically within a minute.`
-          + (where ? ` View the commit: ${where}` : "")
+        // The paper's own page works immediately — it reads papers/<id>.json,
+        // which is already committed. The main list takes a minute longer,
+        // because it reads papers/index.json, and that is updated by the
+        // create-issues Action after this commit, followed by a Pages rebuild.
+        // Saying so beats leaving the contributor staring at an unchanged page.
+        setStatusParts(
+          `Submitted "${paper.title}"${out.pdf_path ? " (with PDF)" : ""}. `,
+          statusLink(`paper.html?id=${encodeURIComponent(out.id)}`, "Open its page"),
+          " — it joins the main list in a minute or so, once its discussion issue"
+          + " is created and the site rebuilds.",
+          where ? " " : null,
+          where ? statusLink(where, "View the commit") : null,
         );
         return;
       }

@@ -105,9 +105,15 @@ jobs:
             process.exit(bad ? 1 : 0);
           '
 
-      # update-index.js is deterministic, so a diff here means index.json
-      # drifted out of sync with what is actually in papers/.
+      # Pull requests only, deliberately. On a push to main this races the
+      # create-issues workflow: a submission through the API commits the paper
+      # first, and the Action adds the issue number and the index entry moments
+      # later. Checking mid-sequence flagged every single submission as a
+      # failure on a commit that was already fixed by the time anyone looked —
+      # CI noise that just teaches you to ignore red. On a PR there is no Action
+      # to self-heal, so the check still catches a paper added by hand.
       - name: papers/index.json is in sync
+        if: github.event_name == 'pull_request'
         run: |
           node scripts/update-index.js
           git diff --exit-code papers/index.json \

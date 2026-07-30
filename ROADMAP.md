@@ -148,20 +148,25 @@ Four issues in `api/main.py`, in severity order:
 4. **No backup.** SQLite at `DB_PATH` (`/data/ratings.db`) is the only copy of every rating
    and comment, and — unlike paper JSON — it lives outside git.
 
-## Phase 9 — Tests and CI
+## Phase 9 — Tests and CI — ✅ done
 
-There are currently no tests anywhere in the repo. The cheapest wins first:
+86 JS tests in `test/` plus the API suite in `api/test_hardening.py`, all wired into
+`.github/workflows/ci.yml`. No test framework and no `package.json` — Node's built-in
+`node --test` runner and a plain Python script, so there are no dependencies to maintain.
 
-- `js/ris-parser.js` and `js/bibtex-parser.js` (391 lines combined) are pure functions over
-  fixture strings — ideal unit-test targets, and the highest-risk code for silent
-  regressions since a parser bug corrupts stored data.
-- `js/export.js` formatters (BibTeX / RIS / APA / MLA / Chicago) are likewise pure.
-- `scripts/enrich-citations.js` matching logic, with `fetch` stubbed (the approach PR #4
-  already used manually).
-- `pytest` over the API's auth and rating/comment endpoints.
+- `test/ris-parser.test.js` / `test/bibtex-parser.test.js` — parsing, author
+  normalization, year extraction, DOI prefix stripping, LaTeX cleanup, malformed input.
+  These were the highest-risk files: a parser bug corrupts stored data silently.
+- `test/export.test.js` — every formatter, plus **round-trip tests** (export → parse →
+  compare) that pin the exporters against both parsers, so a change on either side that
+  breaks interchange fails loudly.
+- `test/enrich-citations.test.js` — the DOI/title matching logic with `fetch` stubbed;
+  no test touches the network or `papers/`.
+- CI also syntax-checks every JS file, validates paper JSON (required fields, id/filename
+  agreement, no phantom PDF references), and fails if `papers/index.json` has drifted.
 
-Wire these into a GitHub Actions workflow so a parser regression fails a PR instead of
-shipping quietly.
+`scripts/enrich-citations.js` gained a `require.main === module` guard so its helpers can
+be imported without triggering a live API sweep.
 
 ## Phase 7 — Close the write path (the real Phase 1 gap)
 

@@ -155,7 +155,10 @@
     return r;
   }
 
-  // Split a BibTeX name list on " and " (but not "{and}" inside braces).
+  // Split a BibTeX name list on " and ". Note this is not brace-aware: braces
+  // are already stripped by the time we split, so a corporate author written as
+  // "{Black and Decker}" splits into two names. Rare enough to live with; fix
+  // by splitting before cleanTeX if it ever bites.
   function splitNames(v) {
     return String(v)
       .split(/\s+and\s+/i)

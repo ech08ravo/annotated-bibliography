@@ -52,6 +52,10 @@ jobs:
         working-directory: api
         run: python test_hardening.py
 
+      - name: Run submission tests
+        working-directory: api
+        run: python test_submissions.py
+
   data-integrity:
     name: Paper data integrity
     runs-on: ubuntu-latest

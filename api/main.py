@@ -15,11 +15,15 @@ Auth model (cross-origin friendly, no third-party cookies):
 """
 
 import os
+import re
+import json
 import time
+import base64
 import sqlite3
 import secrets
 import asyncio
 import logging
+from typing import Any, Dict, List, Optional
 from collections import defaultdict, deque
 from contextlib import closing
 from datetime import datetime, timezone
@@ -62,6 +66,23 @@ MODERATORS = {
 # Per-user write limits (requests per hour, per endpoint group).
 RATE_LIMIT_COMMENTS = int(os.environ.get("RATE_LIMIT_COMMENTS", "20"))
 RATE_LIMIT_RATINGS = int(os.environ.get("RATE_LIMIT_RATINGS", "60"))
+RATE_LIMIT_SUBMISSIONS = int(os.environ.get("RATE_LIMIT_SUBMISSIONS", "10"))
+
+# --- paper submissions (Phase 7) ---------------------------------------------
+# "owner/repo" the proxy commits papers into, and a token with contents:write
+# on it. Submissions are disabled (503) unless both are set.
+GITHUB_REPO = os.environ.get("GITHUB_REPO", "")
+GITHUB_WRITE_TOKEN = os.environ.get("GITHUB_WRITE_TOKEN", "")
+# Commit target. Point this at a review branch instead of main if you'd rather
+# submissions arrive as a PR than land directly.
+SUBMIT_BRANCH = os.environ.get("SUBMIT_BRANCH", "main")
+# If non-empty, only these GitHub logins may submit. Empty = any signed-in user.
+SUBMIT_ALLOWLIST = {
+    s.strip().lower()
+    for s in os.environ.get("SUBMIT_ALLOWLIST", "").split(",")
+    if s.strip()
+}
+MAX_PDF_BYTES = int(os.environ.get("MAX_PDF_BYTES", str(10 * 1024 * 1024)))
 
 # Nightly SQLite snapshots kept alongside the live db.
 BACKUP_DIR = os.environ.get("BACKUP_DIR", "/data/backups")
@@ -438,6 +459,175 @@ def post_comment(body: CommentIn, user: User = Depends(current_user)):
         conn.commit()
         row = conn.execute("SELECT * FROM comments WHERE id = ?", (cur.lastrowid,)).fetchone()
     return _comment_row(row)
+
+
+# --- paper submissions -------------------------------------------------------
+#
+# Closes the Phase 1 write path: the site can now commit a paper (and its PDF)
+# through this proxy instead of sending the user to GitHub's prefilled new-file
+# form, which required repo write access and broke on annotations over ~7.5KB
+# of URL.
+
+# A paper id becomes a path inside the repo, so it is the one field that must be
+# validated strictly rather than sanitised. Lowercase alphanumerics and interior
+# hyphens only: no dots, no slashes, no leading/trailing hyphen. This is what
+# stops "../../.github/workflows/evil" from being written.
+PAPER_ID_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$")
+
+GITHUB_API = "https://api.github.com"
+
+
+class AnnotationIn(BaseModel):
+    author_github: str = ""
+    summary: constr(strip_whitespace=True, max_length=20000) = ""
+    method: constr(strip_whitespace=True, max_length=20000) = ""
+    evaluation: constr(strip_whitespace=True, max_length=20000) = ""
+    relevance: constr(strip_whitespace=True, max_length=20000) = ""
+
+
+class PaperIn(BaseModel):
+    # extra="allow" so fields the front-end adds later (pages, citations, ...)
+    # survive the round trip rather than being silently dropped.
+    model_config = {"extra": "allow"}
+
+    id: str
+    title: constr(strip_whitespace=True, min_length=1, max_length=500)
+    authors: List[constr(strip_whitespace=True, min_length=1, max_length=200)] = []
+    year: Optional[int] = None
+    venue: str = ""
+    doi: str = ""
+    url: str = ""
+    tags: List[constr(strip_whitespace=True, max_length=100)] = []
+    annotation: AnnotationIn = AnnotationIn()
+    highlights: List[Any] = []
+
+
+class SubmissionIn(BaseModel):
+    paper: PaperIn
+    pdf_base64: Optional[str] = None
+
+
+def _gh_headers() -> Dict[str, str]:
+    return {
+        "Authorization": f"Bearer {GITHUB_WRITE_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+async def _gh_get_file(client: httpx.AsyncClient, path: str) -> Optional[dict]:
+    """Return the file's metadata, or None if it doesn't exist."""
+    r = await client.get(
+        f"{GITHUB_API}/repos/{GITHUB_REPO}/contents/{path}",
+        params={"ref": SUBMIT_BRANCH},
+        headers=_gh_headers(),
+    )
+    if r.status_code == 404:
+        return None
+    if r.status_code >= 400:
+        raise HTTPException(502, f"GitHub read failed ({r.status_code}).")
+    return r.json()
+
+
+async def _gh_put_file(
+    client: httpx.AsyncClient, path: str, content: bytes, message: str, sha: Optional[str] = None
+) -> dict:
+    body = {
+        "message": message,
+        "content": base64.b64encode(content).decode("ascii"),
+        "branch": SUBMIT_BRANCH,
+    }
+    if sha:
+        body["sha"] = sha
+    r = await client.put(
+        f"{GITHUB_API}/repos/{GITHUB_REPO}/contents/{path}", json=body, headers=_gh_headers()
+    )
+    if r.status_code not in (200, 201):
+        # Surface the status but not GitHub's body, which can echo the token.
+        raise HTTPException(502, f"GitHub write failed for {path} ({r.status_code}).")
+    return r.json()
+
+
+@app.post("/papers")
+async def submit_paper(body: SubmissionIn, user: User = Depends(current_user)):
+    enforce_rate_limit("submissions", user.id, RATE_LIMIT_SUBMISSIONS)
+
+    if SUBMIT_ALLOWLIST and user.login.lower() not in SUBMIT_ALLOWLIST:
+        raise HTTPException(403, "Your account is not on the submission allowlist.")
+    if not (GITHUB_REPO and GITHUB_WRITE_TOKEN):
+        raise HTTPException(
+            503,
+            "Submissions are not configured on this server. "
+            "Set GITHUB_REPO and GITHUB_WRITE_TOKEN to enable them.",
+        )
+
+    paper = body.paper.model_dump()
+    # Drop UI-internal markers (e.g. _pdfPending) that extra="allow" let through.
+    paper = {k: v for k, v in paper.items() if not k.startswith("_")}
+
+    paper["id"] = pid = str(paper["id"]).strip().lower()
+    if not PAPER_ID_RE.match(pid):
+        raise HTTPException(
+            400,
+            "Invalid paper id. Use lowercase letters, digits and hyphens, "
+            "e.g. 'kuhn-1962-structure'.",
+        )
+    if not paper["authors"]:
+        raise HTTPException(400, "At least one author is required.")
+
+    # The annotation is credited to the authenticated user, never to whatever
+    # the client claimed.
+    paper["annotation"]["author_github"] = user.login
+
+    pdf_bytes: Optional[bytes] = None
+    if body.pdf_base64:
+        try:
+            pdf_bytes = base64.b64decode(body.pdf_base64, validate=True)
+        except Exception:
+            raise HTTPException(400, "pdf_base64 is not valid base64.")
+        if len(pdf_bytes) > MAX_PDF_BYTES:
+            raise HTTPException(413, f"PDF exceeds {MAX_PDF_BYTES // (1024 * 1024)} MB.")
+        if not pdf_bytes.startswith(b"%PDF-"):
+            raise HTTPException(400, "That file is not a PDF.")
+
+    json_path = f"papers/{pid}.json"
+    pdf_path = f"papers/pdfs/{pid}.pdf"
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        if await _gh_get_file(client, json_path):
+            raise HTTPException(409, f"A paper with id '{pid}' already exists.")
+
+        # Store the PDF first and only then reference it from the JSON. Doing it
+        # the other way round is how a paper ends up pointing at a PDF that was
+        # never uploaded (the phantom-PDF bug fixed in #4).
+        if pdf_bytes:
+            existing = await _gh_get_file(client, pdf_path)
+            await _gh_put_file(
+                client, pdf_path, pdf_bytes,
+                f"Add PDF for {pid} (submitted by @{user.login})",
+                sha=(existing or {}).get("sha"),
+            )
+            # Paths are stored relative to papers/ — js/paper.js resolves
+            # `papers/${paper.pdf}`.
+            paper["pdf"] = f"pdfs/{pid}.pdf"
+        else:
+            paper.pop("pdf", None)
+
+        content = (json.dumps(paper, indent=2, ensure_ascii=False) + "\n").encode("utf-8")
+        result = await _gh_put_file(
+            client, json_path, content,
+            f"Add paper: {paper['title'][:60]} (submitted by @{user.login})",
+        )
+
+    log.info("paper %s submitted by %s", pid, user.login)
+    return {
+        "id": pid,
+        "path": json_path,
+        "pdf_path": pdf_path if pdf_bytes else None,
+        "branch": SUBMIT_BRANCH,
+        "commit_url": (result.get("commit") or {}).get("html_url", ""),
+        "file_url": (result.get("content") or {}).get("html_url", ""),
+    }
 
 
 @app.delete("/comments/{comment_id}")

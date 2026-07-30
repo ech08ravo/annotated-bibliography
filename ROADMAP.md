@@ -62,10 +62,12 @@ green against it.
 (summary / method / evaluation / relevance). `js/bibtex-parser.js` and the three input
 modes in `js/contribute.js` are live.
 
-**Not built:** the write path. `submitPaper()` in `js/contribute.js` still terminates at a
-**"Download JSON"** button — the documented fallback, not the proxy commit. `api/main.py`
-exposes `ratings` and `comments` routers only; there is no submissions endpoint. So
-contributing a paper remains a manual download-and-commit. Closing this is Phase 7.
+**Completed in Phase 7:** the write path through the proxy. (An earlier revision of this
+document described `submitPaper()` as terminating at a "Download JSON" button — that was
+wrong. It called `openPR()`, which opens GitHub's prefilled new-file form. That worked, but
+required the contributor to have repo write access or fork the repo, sent them off-site to
+finish, silently couldn't carry a PDF, and fell back to the clipboard once the annotation
+pushed the URL past ~7.5KB. Phase 7 removes all four limits for signed-in users.)
 
 ## Phase 2 — Browsing as much as contributing — ✅ done
 
@@ -124,6 +126,8 @@ the first feature that lets other people write to the repo through our server.**
 secret-handling fix, rate limits, moderation, and a test suite should exist *before* that
 door opens, not after. Recommended order: **8 → 9 → 7 → 10 → 11 → 12**.
 
+Phases 8, 9 and 7 shipped in that order; 10–12 remain.
+
 ```
 Phase 8  Harden the API        ─┐
 Phase 9  Tests + CI            ─┴─→  Phase 7  Write path (submissions)
@@ -168,17 +172,33 @@ Four issues in `api/main.py`, in severity order:
 `scripts/enrich-citations.js` gained a `require.main === module` guard so its helpers can
 be imported without triggering a live API sweep.
 
-## Phase 7 — Close the write path (the real Phase 1 gap)
+## Phase 7 — Close the write path — ✅ done
 
-Add a submissions router to the proxy (`POST /papers`) that commits the generated paper
-JSON — and the PDF, if supplied — via the GitHub App credential, letting the existing
-`create-issues.yml` Action mint the discussion issue as it does today. Then point
-`submitPaper()` at it. The seam already exists and is commented as such in
-`js/contribute.js`; the "Download JSON" button stays as the offline fallback.
+`POST /papers` on the proxy commits `papers/<id>.json` (and `papers/pdfs/<id>.pdf` when a
+PDF is attached) to `SUBMIT_BRANCH`, and the existing `create-issues.yml` Action mints the
+discussion issue as before. `submitPaper()` in `js/contribute.js` posts there when the user
+is signed in, and falls back to the pre-existing GitHub / download / copy paths when signed
+out, when the endpoint is unconfigured, or on any error — so the page is never a dead end.
 
-This is also where **submission gating** gets decided: require a GitHub login (consistent
-with ratings and comments, and the simpler option), or accept anonymous submissions into a
-moderation queue.
+**Submission gating (decided):** a GitHub login is required, consistent with ratings and
+comments. `SUBMIT_ALLOWLIST` optionally narrows that to named logins; left empty, any
+signed-in GitHub user may submit, bounded by `RATE_LIMIT_SUBMISSIONS` (10/hour by default).
+Anonymous submission was rejected — it needs a moderation queue nobody would staff.
+
+**Credential (deviation from the original plan):** this uses a fine-grained PAT scoped to
+the one repository rather than a GitHub App. No JWT signing, no new dependency, no App
+installation to maintain. A GitHub App would buy auto-rotating short-lived tokens and
+bot-attributed commits; `_gh_headers()` in `api/main.py` is the only function that would
+need to change. See `api/README.md`.
+
+Two related bugs fixed while wiring this up:
+
+- `js/contribute.js` stored `paper.pdf` as `"<id>.pdf"`, but `js/paper.js` resolves
+  `papers/${paper.pdf}` — so every PDF-bearing submission produced a broken link. Now
+  `"pdfs/<id>.pdf"`.
+- A client-supplied `pdf` field is stripped unless a PDF was actually uploaded, and the PDF
+  is committed *before* the JSON that references it. This is the phantom-PDF class of bug
+  #4 had to fix by hand, now structurally prevented and covered by CI.
 
 ## Phase 10 — Read-path scaling
 

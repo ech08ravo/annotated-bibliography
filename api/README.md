@@ -25,6 +25,7 @@ write path) are not implemented yet — see Phase 7 in `../ROADMAP.md`.
 | GET    | `/comments/{paper_id}`| no    | all comments for a paper (grouped by section client-side) |
 | POST   | `/comments`          | bearer | post `{paper_id, section, body}`         |
 | DELETE | `/comments/{id}`     | bearer | delete your own comment (moderators: any)|
+| POST   | `/papers`            | bearer | submit a paper: commits `papers/<id>.json` (+ optional PDF) |
 
 Writes are rate-limited per GitHub user per hour — `POST /comments` and
 `POST /ratings` have separate budgets and return `429` with a `Retry-After`
@@ -59,6 +60,39 @@ curl -s http://172.17.0.1:8090/health
 `/health` and `GET /ratings` work without OAuth configured; login and posting
 ratings need the GitHub credentials filled in.
 
+## Submissions (`POST /papers`)
+
+Body is `{"paper": {...}, "pdf_base64": "..."}` — the paper JSON the contribute
+page builds, plus optionally the PDF's bytes. The proxy commits
+`papers/<id>.json` (and `papers/pdfs/<id>.pdf`) to `SUBMIT_BRANCH` using
+`GITHUB_WRITE_TOKEN`, and the existing `create-issues.yml` Action then mints the
+paper's discussion issue.
+
+Returns `503` unless both `GITHUB_REPO` and `GITHUB_WRITE_TOKEN` are set, so the
+endpoint is inert until you deliberately configure it. The site treats that as a
+signal to fall back to its GitHub pull-request flow.
+
+Three things worth knowing:
+
+- **The `id` is validated, not sanitised.** It becomes a path inside the repo, so
+  it must match `^[a-z0-9](?:[a-z0-9-]{0,58}[a-z0-9])?$` — no dots, no slashes,
+  no leading or trailing hyphen. Case and surrounding whitespace are coerced
+  (lowercasing cannot introduce a path character); anything else is rejected.
+  This is what stops a crafted id from writing outside `papers/`.
+- **The annotation is credited to the authenticated user**, overwriting whatever
+  `annotation.author_github` the client sent.
+- **The PDF is committed before the JSON**, and `paper.pdf` is only set once the
+  upload succeeded. Doing it the other way round is how a paper ends up
+  referencing a PDF nobody uploaded.
+
+**On the credential:** `ROADMAP.md` originally specified a GitHub App. This uses
+a fine-grained PAT instead — no JWT signing, no new dependency, no App
+installation to maintain, and it can be scoped to this single repository with
+only `Contents: read and write`. The tradeoffs a GitHub App would buy are
+short-lived auto-rotating tokens and commits attributed to a bot identity rather
+than the token's owner. If you want those, `_gh_headers()` is the only function
+that needs to change.
+
 ## Backups
 
 The SQLite file holds every rating and comment and — unlike the paper JSON — does
@@ -75,10 +109,15 @@ if the data matters.
 cd api
 python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 ./venv/bin/python test_hardening.py
+./venv/bin/python test_submissions.py
 ```
 
-Covers secret handling, per-user rate limiting, moderator deletion, and backup
-retention. No test framework or extra dependencies; exits non-zero on failure.
+`test_hardening.py` covers secret handling, per-user rate limiting, moderator
+deletion, and backup retention. `test_submissions.py` covers `POST /papers`:
+path-traversal rejection, allowlist gating, PDF validation and ordering, and
+what actually lands in the commit — with GitHub stubbed, so it never makes a
+network call or writes to a real repo. No test framework or extra dependencies;
+both exit non-zero on failure.
 
 ## Rate limiting caveat
 

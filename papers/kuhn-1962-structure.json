@@ -20,5 +20,74 @@
     "relevance": "Background for our methodology chapter; cite when discussing why disciplinary communities resist new measurement frameworks."
   },
   "highlights": [],
-  "issue": 2
+  "issue": 2,
+  "citations": {
+    "source": "openalex",
+    "count": 35554,
+    "by_year": [
+      {
+        "year": 2012,
+        "count": 1660
+      },
+      {
+        "year": 2013,
+        "count": 1773
+      },
+      {
+        "year": 2014,
+        "count": 1639
+      },
+      {
+        "year": 2015,
+        "count": 1489
+      },
+      {
+        "year": 2016,
+        "count": 1324
+      },
+      {
+        "year": 2017,
+        "count": 1091
+      },
+      {
+        "year": 2018,
+        "count": 939
+      },
+      {
+        "year": 2019,
+        "count": 925
+      },
+      {
+        "year": 2020,
+        "count": 896
+      },
+      {
+        "year": 2021,
+        "count": 709
+      },
+      {
+        "year": 2022,
+        "count": 44
+      },
+      {
+        "year": 2023,
+        "count": 28
+      },
+      {
+        "year": 2024,
+        "count": 22
+      },
+      {
+        "year": 2025,
+        "count": 11
+      },
+      {
+        "year": 2026,
+        "count": 23
+      }
+    ],
+    "openalex_id": "https://openalex.org/W2753533763",
+    "matched_by": "title",
+    "retrieved": "2026-08-03"
+  }
 }

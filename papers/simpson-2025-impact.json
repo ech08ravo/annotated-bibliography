@@ -20,5 +20,18 @@
     "relevance": ""
   },
   "highlights": [],
-  "issue": 15
+  "issue": 15,
+  "citations": {
+    "source": "openalex",
+    "count": 1,
+    "by_year": [
+      {
+        "year": 2026,
+        "count": 1
+      }
+    ],
+    "openalex_id": "https://openalex.org/W4417303494",
+    "matched_by": "doi",
+    "retrieved": "2026-08-03"
+  }
 }

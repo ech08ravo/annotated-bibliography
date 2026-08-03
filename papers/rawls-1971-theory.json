@@ -21,5 +21,70 @@
     "relevance": "Reference work for any discussion of fairness in our research — algorithmic fairness, resource allocation, policy design. Cite for the difference principle when arguing that distributional choices should be evaluated by their effect on the worst-off group."
   },
   "highlights": [],
-  "issue": 1
+  "issue": 1,
+  "citations": {
+    "source": "openalex",
+    "count": 1510,
+    "by_year": [
+      {
+        "year": 2012,
+        "count": 97
+      },
+      {
+        "year": 2013,
+        "count": 120
+      },
+      {
+        "year": 2014,
+        "count": 106
+      },
+      {
+        "year": 2015,
+        "count": 99
+      },
+      {
+        "year": 2016,
+        "count": 100
+      },
+      {
+        "year": 2017,
+        "count": 94
+      },
+      {
+        "year": 2018,
+        "count": 86
+      },
+      {
+        "year": 2019,
+        "count": 102
+      },
+      {
+        "year": 2020,
+        "count": 91
+      },
+      {
+        "year": 2021,
+        "count": 86
+      },
+      {
+        "year": 2022,
+        "count": 9
+      },
+      {
+        "year": 2023,
+        "count": 6
+      },
+      {
+        "year": 2024,
+        "count": 3
+      },
+      {
+        "year": 2025,
+        "count": 40
+      }
+    ],
+    "openalex_id": "https://openalex.org/W2973224139",
+    "matched_by": "title",
+    "retrieved": "2026-08-03"
+  }
 }

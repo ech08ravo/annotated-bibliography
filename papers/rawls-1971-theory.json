@@ -24,11 +24,11 @@
   "issue": 1,
   "citations": {
     "source": "openalex",
-    "count": 1510,
+    "count": 1511,
     "by_year": [
       {
         "year": 2012,
-        "count": 97
+        "count": 98
       },
       {
         "year": 2013,
@@ -85,6 +85,6 @@
     ],
     "openalex_id": "https://openalex.org/W2973224139",
     "matched_by": "title",
-    "retrieved": "2026-08-03"
+    "retrieved": "2026-08-17"
   }
 }

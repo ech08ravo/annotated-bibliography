@@ -23,7 +23,7 @@
   "issue": 2,
   "citations": {
     "source": "openalex",
-    "count": 35554,
+    "count": 35547,
     "by_year": [
       {
         "year": 2012,
@@ -35,15 +35,15 @@
       },
       {
         "year": 2014,
-        "count": 1637
+        "count": 1641
       },
       {
         "year": 2015,
-        "count": 1486
+        "count": 1490
       },
       {
         "year": 2016,
-        "count": 1324
+        "count": 1325
       },
       {
         "year": 2017,
@@ -55,7 +55,7 @@
       },
       {
         "year": 2019,
-        "count": 925
+        "count": 923
       },
       {
         "year": 2020,
@@ -88,6 +88,6 @@
     ],
     "openalex_id": "https://openalex.org/W2753533763",
     "matched_by": "title",
-    "retrieved": "2026-08-10"
+    "retrieved": "2026-08-17"
   }
 }

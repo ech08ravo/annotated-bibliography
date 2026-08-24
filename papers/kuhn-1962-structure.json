@@ -23,19 +23,19 @@
   "issue": 2,
   "citations": {
     "source": "openalex",
-    "count": 35547,
+    "count": 35549,
     "by_year": [
       {
         "year": 2012,
-        "count": 1660
+        "count": 1662
       },
       {
         "year": 2013,
-        "count": 1770
+        "count": 1772
       },
       {
         "year": 2014,
-        "count": 1641
+        "count": 1642
       },
       {
         "year": 2015,
@@ -83,11 +83,11 @@
       },
       {
         "year": 2026,
-        "count": 30
+        "count": 32
       }
     ],
     "openalex_id": "https://openalex.org/W2753533763",
     "matched_by": "title",
-    "retrieved": "2026-08-17"
+    "retrieved": "2026-08-24"
   }
 }

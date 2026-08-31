@@ -27,7 +27,7 @@
     "by_year": [
       {
         "year": 2012,
-        "count": 1662
+        "count": 1663
       },
       {
         "year": 2013,
@@ -35,7 +35,7 @@
       },
       {
         "year": 2014,
-        "count": 1642
+        "count": 1641
       },
       {
         "year": 2015,
@@ -43,7 +43,7 @@
       },
       {
         "year": 2016,
-        "count": 1325
+        "count": 1326
       },
       {
         "year": 2017,
@@ -88,6 +88,6 @@
     ],
     "openalex_id": "https://openalex.org/W2753533763",
     "matched_by": "title",
-    "retrieved": "2026-08-24"
+    "retrieved": "2026-08-31"
   }
 }

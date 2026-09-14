@@ -24,7 +24,7 @@
   "issue": 1,
   "citations": {
     "source": "openalex",
-    "count": 1511,
+    "count": 1508,
     "by_year": [
       {
         "year": 2012,
@@ -32,7 +32,7 @@
       },
       {
         "year": 2013,
-        "count": 120
+        "count": 119
       },
       {
         "year": 2014,
@@ -44,7 +44,7 @@
       },
       {
         "year": 2016,
-        "count": 100
+        "count": 99
       },
       {
         "year": 2017,
@@ -85,6 +85,6 @@
     ],
     "openalex_id": "https://openalex.org/W2973224139",
     "matched_by": "title",
-    "retrieved": "2026-08-17"
+    "retrieved": "2026-09-14"
   }
 }

@@ -23,27 +23,27 @@
   "issue": 2,
   "citations": {
     "source": "openalex",
-    "count": 35485,
+    "count": 35394,
     "by_year": [
       {
         "year": 2012,
-        "count": 1661
+        "count": 1655
       },
       {
         "year": 2013,
-        "count": 1766
+        "count": 1760
       },
       {
         "year": 2014,
-        "count": 1639
+        "count": 1634
       },
       {
         "year": 2015,
-        "count": 1486
+        "count": 1478
       },
       {
         "year": 2016,
-        "count": 1323
+        "count": 1318
       },
       {
         "year": 2017,
@@ -55,15 +55,15 @@
       },
       {
         "year": 2019,
-        "count": 922
+        "count": 920
       },
       {
         "year": 2020,
-        "count": 894
+        "count": 891
       },
       {
         "year": 2021,
-        "count": 708
+        "count": 707
       },
       {
         "year": 2022,
@@ -83,11 +83,11 @@
       },
       {
         "year": 2026,
-        "count": 34
+        "count": 35
       }
     ],
     "openalex_id": "https://openalex.org/W2753533763",
     "matched_by": "title",
-    "retrieved": "2026-09-21"
+    "retrieved": "2026-10-05"
   }
 }

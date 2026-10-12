@@ -23,15 +23,15 @@
   "issue": 15,
   "citations": {
     "source": "openalex",
-    "count": 1,
+    "count": 2,
     "by_year": [
       {
         "year": 2026,
-        "count": 1
+        "count": 2
       }
     ],
     "openalex_id": "https://openalex.org/W4417303494",
     "matched_by": "doi",
-    "retrieved": "2026-08-03"
+    "retrieved": "2026-10-12"
   }
 }

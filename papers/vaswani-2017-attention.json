@@ -56,5 +56,62 @@
       "author_github": "example-user"
     }
   ],
-  "issue": 3
+  "issue": 3,
+  "citations": {
+    "source": "openalex",
+    "count": 24351,
+    "by_year": [
+      {
+        "year": 2012,
+        "count": 1
+      },
+      {
+        "year": 2016,
+        "count": 1
+      },
+      {
+        "year": 2017,
+        "count": 48
+      },
+      {
+        "year": 2018,
+        "count": 855
+      },
+      {
+        "year": 2019,
+        "count": 3612
+      },
+      {
+        "year": 2020,
+        "count": 7152
+      },
+      {
+        "year": 2021,
+        "count": 10002
+      },
+      {
+        "year": 2022,
+        "count": 762
+      },
+      {
+        "year": 2023,
+        "count": 93
+      },
+      {
+        "year": 2024,
+        "count": 26
+      },
+      {
+        "year": 2025,
+        "count": 148
+      },
+      {
+        "year": 2026,
+        "count": 1650
+      }
+    ],
+    "openalex_id": "https://openalex.org/W2626778328",
+    "matched_by": "doi",
+    "retrieved": "2026-10-12"
+  }
 }

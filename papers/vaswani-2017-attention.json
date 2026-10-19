@@ -59,10 +59,14 @@
   "issue": 3,
   "citations": {
     "source": "openalex",
-    "count": 24351,
+    "count": 78007,
     "by_year": [
       {
         "year": 2012,
+        "count": 1
+      },
+      {
+        "year": 2013,
         "count": 1
       },
       {
@@ -71,47 +75,47 @@
       },
       {
         "year": 2017,
-        "count": 48
+        "count": 50
       },
       {
         "year": 2018,
-        "count": 855
+        "count": 893
       },
       {
         "year": 2019,
-        "count": 3612
+        "count": 3898
       },
       {
         "year": 2020,
-        "count": 7152
+        "count": 7883
       },
       {
         "year": 2021,
-        "count": 10002
+        "count": 12610
       },
       {
         "year": 2022,
-        "count": 762
+        "count": 10516
       },
       {
         "year": 2023,
-        "count": 93
+        "count": 15123
       },
       {
         "year": 2024,
-        "count": 26
+        "count": 14261
       },
       {
         "year": 2025,
-        "count": 148
+        "count": 10760
       },
       {
         "year": 2026,
-        "count": 1650
+        "count": 2001
       }
     ],
     "openalex_id": "https://openalex.org/W2626778328",
     "matched_by": "doi",
-    "retrieved": "2026-10-12"
+    "retrieved": "2026-10-19"
   }
 }

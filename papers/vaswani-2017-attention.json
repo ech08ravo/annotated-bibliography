@@ -59,7 +59,7 @@
   "issue": 3,
   "citations": {
     "source": "openalex",
-    "count": 78007,
+    "count": 78340,
     "by_year": [
       {
         "year": 2012,
@@ -95,11 +95,11 @@
       },
       {
         "year": 2022,
-        "count": 10516
+        "count": 10517
       },
       {
         "year": 2023,
-        "count": 15123
+        "count": 15122
       },
       {
         "year": 2024,
@@ -107,15 +107,15 @@
       },
       {
         "year": 2025,
-        "count": 10760
+        "count": 10763
       },
       {
         "year": 2026,
-        "count": 2001
+        "count": 2331
       }
     ],
     "openalex_id": "https://openalex.org/W2626778328",
     "matched_by": "doi",
-    "retrieved": "2026-10-19"
+    "retrieved": "2026-10-26"
   }
 }

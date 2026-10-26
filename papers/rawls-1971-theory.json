@@ -24,7 +24,7 @@
   "issue": 1,
   "citations": {
     "source": "openalex",
-    "count": 9437,
+    "count": 9447,
     "by_year": [
       {
         "year": 2012,
@@ -84,11 +84,11 @@
       },
       {
         "year": 2026,
-        "count": 574
+        "count": 584
       }
     ],
     "openalex_id": "https://openalex.org/W3177243356",
     "matched_by": "title",
-    "retrieved": "2026-10-19"
+    "retrieved": "2026-10-26"
   }
 }

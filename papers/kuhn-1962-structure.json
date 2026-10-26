@@ -23,7 +23,7 @@
   "issue": 2,
   "citations": {
     "source": "openalex",
-    "count": 35275,
+    "count": 35276,
     "by_year": [
       {
         "year": 2012,
@@ -43,7 +43,7 @@
       },
       {
         "year": 2016,
-        "count": 1309
+        "count": 1310
       },
       {
         "year": 2017,
@@ -88,6 +88,6 @@
     ],
     "openalex_id": "https://openalex.org/W2753533763",
     "matched_by": "title",
-    "retrieved": "2026-10-19"
+    "retrieved": "2026-10-26"
   }
 }

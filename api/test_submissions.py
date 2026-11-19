@@ -32,7 +32,7 @@ os.environ.update({
     "DB_PATH": os.path.join(tmp, "ratings.db"),
     "BACKUP_DIR": os.path.join(tmp, "backups"),
     "BACKUP_INTERVAL_SECONDS": "0",
-    "GITHUB_REPO": "ech08ravo/Textbook",
+    "GITHUB_REPO": "ech08ravo/annotated-bibliography",
     "GITHUB_WRITE_TOKEN": "ghp_fake_token_for_tests",
     "SUBMIT_BRANCH": "main",
     "SUBMIT_ALLOWLIST": "",

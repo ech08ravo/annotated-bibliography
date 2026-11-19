@@ -11,7 +11,7 @@
 // down or unconfigured.
 
 const GH_OWNER = "ech08ravo";
-const GH_REPO  = "Textbook";
+const GH_REPO  = "annotated-bibliography";
 
 const GH = (function () {
   const API = "https://api.github.com";

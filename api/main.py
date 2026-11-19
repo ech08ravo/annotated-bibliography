@@ -45,7 +45,7 @@ GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "")
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
 # Where to send the user back after login (the GitHub Pages site).
 SITE_ORIGIN = os.environ.get("SITE_ORIGIN", "https://ech08ravo.github.io")
-SITE_REDIRECT = os.environ.get("SITE_REDIRECT", SITE_ORIGIN + "/Textbook/")
+SITE_REDIRECT = os.environ.get("SITE_REDIRECT", SITE_ORIGIN + "/annotated-bibliography/")
 # This API's own public base, used to build the OAuth callback URL.
 API_BASE = os.environ.get("API_BASE", "https://textbook-api.webgrid.online")
 # Comma-separated list of origins allowed to call the API from the browser.

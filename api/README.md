@@ -37,7 +37,7 @@ header once exhausted.
 
 ```bash
 cd /home/ubuntu
-git clone https://github.com/ech08ravo/Textbook.git textbook   # first time
+git clone https://github.com/ech08ravo/annotated-bibliography.git textbook   # first time
 cd textbook/api
 cp .env.example .env          # then fill it in (see below)
 docker compose up -d --build

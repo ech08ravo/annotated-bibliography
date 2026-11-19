@@ -30,7 +30,7 @@ os.environ.update({
     "DB_PATH": os.path.join(tmp, "ratings.db"),
     "BACKUP_DIR": os.path.join(tmp, "backups"),
     "BACKUP_INTERVAL_SECONDS": "0",
-    "GITHUB_REPO": "ech08ravo/annotated-bibliography",
+    "GITHUB_REPO": "ech08ravo/Textbook",
     "GITHUB_WRITE_TOKEN": "",
     "GITHUB_READ_TOKEN": "",
     "ISSUE_CACHE_TTL": "300",
@@ -251,7 +251,7 @@ reset_cache()
 check("unconfigured repo returns 503 for stats", client.get("/issues").status_code == 503)
 check("unconfigured repo returns 503 for comments",
       client.get("/issues/1/comments").status_code == 503)
-os.environ["GITHUB_REPO"] = "ech08ravo/annotated-bibliography"
+os.environ["GITHUB_REPO"] = "ech08ravo/Textbook"
 importlib.reload(main)
 
 # ---- prune ------------------------------------------------------------------

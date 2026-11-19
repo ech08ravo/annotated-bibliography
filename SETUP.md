@@ -39,7 +39,7 @@ git add .gitignore && git commit -m "Add .gitignore"
 
 ## 3. Create the GitHub repo and push
 
-1. On GitHub: <https://github.com/new>. Name it whatever you like — `annotated-bibliography` or similar. Leave it **empty** (don't add a README or .gitignore — you already have those).
+1. On GitHub: <https://github.com/new>. Name it whatever you like — `Textbook` or similar. Leave it **empty** (don't add a README or .gitignore — you already have those).
 2. Back in the VS Code terminal:
 
    ```bash

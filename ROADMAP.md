@@ -52,7 +52,7 @@ stood up.
 
 ## Phase 0 — Config & deploy hygiene (quick) — ✅ done
 
-Repo coordinates are `ech08ravo/annotated-bibliography`; Pages is live; the Actions run
+Repo coordinates are `ech08ravo/Textbook`; Pages is live; the Actions run
 green against it.
 
 ## Phase 1 — Easy "submit a document + commentary" — ⚠️ partially done
@@ -106,7 +106,7 @@ Multi-select papers and export the selection to BibTeX, RIS, formatted citations
 
 ## Resolved decisions
 
-- **Repo coordinates:** `ech08ravo/annotated-bibliography`, served on GitHub Pages.
+- **Repo coordinates:** `ech08ravo/Textbook`, served on GitHub Pages.
 - **Proxy stack:** Python (FastAPI + SQLite), containerised — see `api/`.
 - **Citation source:** OpenAlex (free, no key); scite's supporting/contrasting breakdown
   deferred.

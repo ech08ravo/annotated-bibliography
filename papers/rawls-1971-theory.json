@@ -24,71 +24,71 @@
   "issue": 1,
   "citations": {
     "source": "openalex",
-    "count": 25192,
+    "count": 25639,
     "by_year": [
       {
         "year": 2012,
-        "count": 828
+        "count": 822
       },
       {
         "year": 2013,
-        "count": 799
+        "count": 822
       },
       {
         "year": 2014,
-        "count": 794
+        "count": 810
       },
       {
         "year": 2015,
-        "count": 754
+        "count": 745
       },
       {
         "year": 2016,
-        "count": 800
+        "count": 822
       },
       {
         "year": 2017,
-        "count": 884
+        "count": 894
       },
       {
         "year": 2018,
-        "count": 936
+        "count": 942
       },
       {
         "year": 2019,
-        "count": 1236
+        "count": 1245
       },
       {
         "year": 2020,
-        "count": 1045
+        "count": 1066
       },
       {
         "year": 2021,
-        "count": 957
+        "count": 977
       },
       {
         "year": 2022,
-        "count": 885
+        "count": 922
       },
       {
         "year": 2023,
-        "count": 924
+        "count": 958
       },
       {
         "year": 2024,
-        "count": 1032
+        "count": 1072
       },
       {
         "year": 2025,
-        "count": 1626
+        "count": 1687
       },
       {
         "year": 2026,
-        "count": 1470
+        "count": 1595
       }
     ],
     "openalex_id": "https://openalex.org/W4213439731",
     "matched_by": "title",
-    "retrieved": "2026-11-09"
+    "retrieved": "2026-11-23"
   }
 }
